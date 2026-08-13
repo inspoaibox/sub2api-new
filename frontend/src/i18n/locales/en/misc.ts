@@ -447,6 +447,8 @@ export default {
     airwallexPay: 'Airwallex Payment',
     stripePay: 'Pay Now',
     stripeSuccessProcessing: 'Payment successful, processing your order...',
+    stripePaymentProcessing: 'Confirming payment status, please wait...',
+    stripePaymentTimeout: 'Payment confirmation timed out. Check your order history or try again later.',
     stripePopup: {
       redirecting: 'Redirecting to payment page...',
       loadingQr: 'Loading WeChat Pay QR code...',

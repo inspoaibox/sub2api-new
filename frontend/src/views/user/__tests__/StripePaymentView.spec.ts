@@ -160,4 +160,37 @@ describe('StripePaymentView', () => {
     expect(wrapper.find('img[alt="WeChat Pay QR"]').attributes('src')).toBe('data:image/png;base64,wechat-qr')
     wrapper.unmount()
   })
+
+  it('从 Stripe Payment Element 选择微信支付后仍由本站展示二维码', async () => {
+    getOrder.mockResolvedValue({ data: orderFactory() })
+    stripeInstance.confirmWechatPayPayment.mockResolvedValue({
+      paymentIntent: {
+        status: 'requires_action',
+        next_action: {
+          wechat_pay_display_qr_code: { image_data_url: 'data:image/png;base64,wechat-element-qr' },
+        },
+      },
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await flushPromises()
+
+    const changeHandler = stripePaymentElement.on.mock.calls
+      .find(([event]) => event === 'change')?.[1] as ((event: { value: { type: string } }) => void) | undefined
+    expect(changeHandler).toBeTypeOf('function')
+    changeHandler?.({ value: { type: 'wechat_pay' } })
+
+    await wrapper.find('button.btn-stripe').trigger('click')
+    await flushPromises()
+
+    expect(stripeInstance.confirmWechatPayPayment).toHaveBeenCalledWith(
+      'pi_secret_42',
+      expect.objectContaining({ payment_method_options: expect.any(Object) }),
+      { handleActions: false },
+    )
+    expect(wrapper.find('img[alt="WeChat Pay QR"]').attributes('src')).toBe('data:image/png;base64,wechat-element-qr')
+    expect(wrapper.text()).not.toContain('payment.stripeSuccessProcessing')
+    wrapper.unmount()
+  })
 })

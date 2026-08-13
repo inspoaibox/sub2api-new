@@ -70,7 +70,7 @@
             <div class="flex flex-col items-center gap-3 py-4">
               <div class="h-12 w-12 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
               <p class="text-lg font-bold text-gray-900 dark:text-white">{{ t('payment.result.processing') }}</p>
-              <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.stripeSuccessProcessing') }}</p>
+              <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.stripePaymentProcessing') }}</p>
             </div>
           </div>
         </template>
@@ -133,6 +133,8 @@ const stripeSubmitting = ref(false)
 const stripeSuccess = ref(false)
 const stripeProcessing = ref(false)
 const stripeReady = ref(false)
+const selectedPaymentType = ref('')
+const stripeClientSecret = ref('')
 const order = ref<PaymentOrder | null>(null)
 const currency = ref('CNY')
 const wechatQrUrl = ref('')
@@ -172,6 +174,7 @@ onMounted(async () => {
       initError.value = t('payment.stripeMissingParams')
       return
     }
+    stripeClientSecret.value = clientSecret
     const res = await paymentAPI.getOrder(orderId)
     order.value = res.data
     if (res.data.currency) {
@@ -251,6 +254,8 @@ async function confirmWechatPay(stripe: Stripe, clientSecret: string) {
   }, { handleActions: false })
 
   if (error) {
+    stripeProcessing.value = false
+    wechatQrUrl.value = ''
     stripeError.value = error.message || t('payment.result.failed')
     return
   }
@@ -259,7 +264,7 @@ async function confirmWechatPay(stripe: Stripe, clientSecret: string) {
   const qrData = paymentIntent?.next_action?.wechat_pay_display_qr_code?.image_data_url
   if (qrData) {
     wechatQrUrl.value = qrData
-    stripeProcessing.value = true
+    stripeProcessing.value = false
     // 轮询支付完成状态
     startPolling()
   } else if (paymentIntent?.status === 'succeeded') {
@@ -286,6 +291,9 @@ function mountPaymentElement(stripe: Stripe, clientSecret: string) {
   } as Record<string, unknown>)
   paymentElement.mount('#stripe-payment-element')
   paymentElement.on('ready', () => { stripeReady.value = true })
+  paymentElement.on('change', (event: { value?: { type?: string } }) => {
+    selectedPaymentType.value = event.value?.type || ''
+  })
 }
 
 async function handleGenericPay() {
@@ -293,6 +301,13 @@ async function handleGenericPay() {
   stripeSubmitting.value = true
   stripeError.value = ''
   try {
+    // Stripe Payment Element 的微信支付确认会自行打开可关闭的二维码层。
+    // 直接调用确认接口拿二维码，本站展示二维码，避免关闭层被误判为已提交成功。
+    if (selectedPaymentType.value === 'wechat_pay') {
+      await confirmWechatPay(stripeInstance, stripeClientSecret.value)
+      return
+    }
+
     const { error } = await stripeInstance.confirmPayment({
       elements: elementsInstance,
       confirmParams: {
@@ -314,21 +329,55 @@ async function handleGenericPay() {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let pollStartedAt = 0
+let pollInFlight = false
+
+const PAYMENT_POLL_INTERVAL_MS = 3000
+const PAYMENT_POLL_TIMEOUT_MS = 10 * 60 * 1000
 
 function startPolling() {
   const orderId = Number(route.query.order_id)
   if (!orderId) return
-  pollTimer = setInterval(async () => {
-    const o = await paymentStore.pollOrderStatus(orderId)
-    if (!o) return
-    if (o.status === 'COMPLETED') {
+
+  if (pollTimer) clearInterval(pollTimer)
+  pollStartedAt = Date.now()
+  pollInFlight = false
+
+  const checkStatus = async () => {
+    if (pollInFlight) return
+    pollInFlight = true
+    try {
+      const o = await paymentStore.pollOrderStatus(orderId)
+      if (!o) return
+      const status = String(o.status || '').trim().toUpperCase()
+      if (status === 'COMPLETED') {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+        stripeProcessing.value = false
+        stripeSuccess.value = true
+        wechatQrUrl.value = ''
+        scheduleClose()
+      } else if (status === 'EXPIRED' || status === 'CANCELLED' || status === 'FAILED') {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+        stripeProcessing.value = false
+        wechatQrUrl.value = ''
+        stripeError.value = t('payment.result.failed')
+      }
+    } finally {
+      pollInFlight = false
+    }
+  }
+
+  void checkStatus()
+  pollTimer = setInterval(() => {
+    if (Date.now() - pollStartedAt >= PAYMENT_POLL_TIMEOUT_MS) {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
       stripeProcessing.value = false
-      stripeSuccess.value = true
       wechatQrUrl.value = ''
-      scheduleClose()
+      stripeError.value = t('payment.stripePaymentTimeout')
+      return
     }
-  }, 3000)
+    void checkStatus()
+  }, PAYMENT_POLL_INTERVAL_MS)
 }
 
 function scheduleClose() {

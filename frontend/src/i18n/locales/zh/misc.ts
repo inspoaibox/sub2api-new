@@ -471,6 +471,8 @@ export default {
     airwallexPay: 'Airwallex 支付',
     stripePay: '立即支付',
     stripeSuccessProcessing: '支付成功，正在处理订单...',
+    stripePaymentProcessing: '正在确认支付状态，请稍候...',
+    stripePaymentTimeout: '支付状态确认超时，请到订单记录查看状态，或稍后重试。',
     stripePopup: {
       redirecting: '正在跳转到支付页面...',
       loadingQr: '正在获取微信支付二维码...',
