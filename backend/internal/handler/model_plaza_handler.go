@@ -50,6 +50,7 @@ type modelPlazaModel struct {
 	Platform        string                     `json:"platform"`
 	Pricing         *userSupportedModelPricing `json:"pricing"`
 	OfficialPricing *modelPlazaOfficialPricing `json:"official_pricing"`
+	Capabilities    []string                   `json:"capabilities"`
 }
 
 // modelPlazaGroup 广场分组条目（白名单字段）。
@@ -165,6 +166,7 @@ func toModelPlazaGroupDTO(g *service.PlazaGroup, userRates map[int64]float64) mo
 			Platform:        m.Platform,
 			Pricing:         toUserPricing(m.Pricing),
 			OfficialPricing: toModelPlazaOfficialPricing(m.OfficialPricing),
+			Capabilities:    append([]string(nil), m.Capabilities...),
 		})
 	}
 	dto := modelPlazaGroup{

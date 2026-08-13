@@ -542,7 +542,22 @@ export default {
     loadFailed: 'Failed to load model plaza',
     noSearchResult: 'No matching models',
     anonymousHint: 'Sign in to see your exclusive groups and personal rates',
+    stats: {
+      models: 'Available models',
+      groups: 'Available groups',
+      platforms: 'Platforms',
+      showing: 'Showing'
+    },
+    capabilities: {
+      label: 'Model capability',
+      chat: 'Chat',
+      image: 'Image',
+      video: 'Video',
+      embedding: 'Vector',
+      empty: 'No models are available in this category'
+    },
     filters: {
+      title: 'Filter models',
       platformLabel: 'Platform',
       groupLabel: 'Group',
       rateLabel: 'Rate',
@@ -558,6 +573,15 @@ export default {
       noModels: 'No models configured for this group',
       noPricing: 'Pricing not configured',
       peakNote: 'Peak hours {window}: billing rate ×{multiplier}'
+    },
+    card: {
+      yourPrice: 'Your price',
+      tokenBilling: 'Token billing',
+      group: 'Group: {name}',
+      modelCount: '{count} models',
+      tieredPrice: 'Starting tier: {tier}',
+      pricingDetails: 'View pricing details',
+      officialReference: 'Official reference price'
     },
     table: {
       model: 'Model',

@@ -17,12 +17,24 @@ type PlazaOfficialPricing struct {
 	CacheReadPrice    *float64
 }
 
+const (
+	// PlazaCapabilityChat 表示模型主要用于文本对话与推理。
+	PlazaCapabilityChat = "chat"
+	// PlazaCapabilityImage 表示模型提供图片生成或编辑能力。
+	PlazaCapabilityImage = "image"
+	// PlazaCapabilityVideo 表示模型提供视频生成能力。
+	PlazaCapabilityVideo = "video"
+	// PlazaCapabilityEmbedding 表示模型提供向量、嵌入或重排序能力。
+	PlazaCapabilityEmbedding = "embedding"
+)
+
 // PlazaModel 模型广场中单个模型条目：渠道定价 + 官方参考价。
 type PlazaModel struct {
 	Name            string
 	Platform        string
 	Pricing         *ChannelModelPricing
 	OfficialPricing *PlazaOfficialPricing
+	Capabilities    []string
 }
 
 // PlazaGroup 模型广场中以分组为顶层的条目。
@@ -168,6 +180,7 @@ func (s *ChannelService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, err
 		})
 		for j := range pg.Models {
 			pg.Models[j].OfficialPricing = s.lookupOfficialPricing(pg.Models[j].Name, officialMemo)
+			pg.Models[j].Capabilities = s.plazaModelCapabilities(pg.Models[j].Name, pg.Models[j].Pricing)
 		}
 		out = append(out, *pg)
 	}
@@ -179,6 +192,72 @@ func (s *ChannelService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, err
 		return out[i].Name < out[j].Name
 	})
 	return out, nil
+}
+
+// plazaModelCapabilities 归类模型广场中的模型能力。计费模式和 LiteLLM mode 是优先
+// 使用的结构化信号；模型名仅在结构化数据未标识特定能力时作为兼容兜底。
+//
+// 未识别的模型始终归入 chat，避免新模型因定价源暂未收录而从广场中消失。
+func (s *ChannelService) plazaModelCapabilities(modelName string, pricing *ChannelModelPricing) []string {
+	capabilities := make([]string, 0, 2)
+	add := func(capability string) {
+		for _, existing := range capabilities {
+			if existing == capability {
+				return
+			}
+		}
+		capabilities = append(capabilities, capability)
+	}
+
+	if pricing != nil {
+		switch pricing.BillingMode {
+		case BillingModeImage:
+			add(PlazaCapabilityImage)
+		case BillingModeVideo:
+			add(PlazaCapabilityVideo)
+		}
+	}
+
+	if s.pricingService != nil {
+		if lp := s.pricingService.GetModelPricing(modelName); lp != nil {
+			switch strings.ToLower(strings.TrimSpace(lp.Mode)) {
+			case "image", "image_generation":
+				add(PlazaCapabilityImage)
+			case "video", "video_generation":
+				add(PlazaCapabilityVideo)
+			case "embedding", "embeddings", "rerank", "reranking":
+				add(PlazaCapabilityEmbedding)
+			}
+		}
+	}
+
+	// 只有在结构化信息未指向图片、视频或向量时才依赖名称规则，避免名称中的
+	// 普通词片段覆盖管理员已明确配置的计费模型。
+	if len(capabilities) == 0 {
+		name := strings.ToLower(modelName)
+		switch {
+		case plazaNameContainsAny(name, "embedding", "embed", "rerank"):
+			add(PlazaCapabilityEmbedding)
+		case plazaNameContainsAny(name, "gpt-image", "dall-e", "dalle", "imagen", "cogview", "flux", "midjourney", "seedream", "kolors", "stable-diffusion", "stable_diffusion", "ideogram"):
+			add(PlazaCapabilityImage)
+		case plazaNameContainsAny(name, "sora", "veo", "cogvideo", "runway", "kling", "luma", "pika", "wan-video", "hunyuan-video", "seedance", "minimax-video"):
+			add(PlazaCapabilityVideo)
+		}
+	}
+
+	if len(capabilities) == 0 {
+		add(PlazaCapabilityChat)
+	}
+	return capabilities
+}
+
+func plazaNameContainsAny(value string, fragments ...string) bool {
+	for _, fragment := range fragments {
+		if strings.Contains(value, fragment) {
+			return true
+		}
+	}
+	return false
 }
 
 // plazaImageDisplayPricing 为图片计费模型合成展示定价，使档位价与实收口径一致：

@@ -285,17 +285,31 @@ git rebase upstream/main
 cd frontend
 pnpm install
 
-# 开发服务器
+# 只运行前端开发服务器
 pnpm dev
 
 # 构建
 pnpm build
 ```
 
+### 本地联调
+
+```powershell
+# 在项目根目录一键启动前端 Vite HMR + 后端自动重启
+pnpm dev
+
+# 如确需调整端口，可通过环境变量覆盖默认值
+$env:BACKEND_PORT = "8081"
+$env:FRONTEND_PORT = "3000"
+pnpm dev
+```
+
+前端默认运行在 `http://localhost:3000`，后端默认运行在 `http://localhost:8080`。开发脚本会把 Vite 的 `/api`、`/v1`、`/setup` 请求代理到后端；修改后端 `.go`、配置或迁移文件时会自动重启 `go run ./cmd/server`。
+
 ### 后端操作
 
 ```bash
-# 运行服务器
+# 只运行后端服务器
 cd backend
 go run ./cmd/server/
 

@@ -1,0 +1,12 @@
+{
+  "name": "sub2api",
+  "private": true,
+  "scripts": {
+    "dev": "node tools/dev/dev.mjs",
+    "dev:frontend": "pnpm --dir frontend dev",
+    "dev:backend": "node tools/dev/dev.mjs --backend-only",
+    "setup": "pnpm --dir frontend install",
+    "build:frontend": "pnpm --dir frontend build",
+    "build": "pnpm build:frontend"
+  }
+}

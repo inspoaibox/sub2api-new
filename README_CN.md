@@ -512,7 +512,18 @@ pnpm run build
 cd ../backend
 VERSION="$(./scripts/resolve-version.sh)"
 go build -tags embed -ldflags="-X main.Version=${VERSION}" -o sub2api ./cmd/server
+```
 
+Windows PowerShell 可使用：
+
+```powershell
+$VERSION = (Get-Content .\cmd\server\VERSION -Raw).Trim()
+$COMMIT = (git -C .. rev-parse --short HEAD).Trim()
+$DATE = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+go build -tags embed -trimpath -ldflags "-s -w -X main.Version=$VERSION -X main.Commit=$COMMIT -X main.Date=$DATE -X main.BuildType=source" -o .\sub2api.exe .\cmd\server
+```
+
+```bash
 # 5. 创建配置文件
 cp ../deploy/config.example.yaml ./config.yaml
 
@@ -699,15 +710,22 @@ websocat -H="Sec-WebSocket-Protocol: sub2api-admin, jwt.<ADMIN_TOKEN>" ws://loca
 
 #### 开发模式
 
-```bash
-# 后端（支持热重载）
-cd backend
-go run ./cmd/server
-
-# 前端（支持热重载）
+```powershell
+# 安装前端依赖
 cd frontend
-pnpm run dev
+pnpm install
+
+# 回到项目根目录，一键启动前端 Vite HMR + 后端自动重启
+cd ..
+pnpm dev
+
+# 如确需调整端口，可通过环境变量覆盖默认值
+$env:BACKEND_PORT = "8081"
+$env:FRONTEND_PORT = "3000"
+pnpm dev
 ```
+
+前端默认运行在 `http://localhost:3000`，后端默认运行在 `http://localhost:8080`。开发脚本会把 Vite 的 `/api`、`/v1`、`/setup` 请求代理到后端；修改后端 `.go`、配置或迁移文件时会自动重启 `go run ./cmd/server`。如需单独调试某一端，可继续使用 `cd backend && go run ./cmd/server` 或 `cd frontend && pnpm dev`。
 
 #### 代码生成
 

@@ -12,6 +12,7 @@ import (
 	"net/textproto"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
@@ -1437,6 +1438,64 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamMultilineSSEDataBillsImag
 	require.Equal(t, 10, result.Usage.InputTokens)
 	require.Equal(t, 18, result.Usage.OutputTokens)
 	require.Equal(t, 8, result.Usage.ImageOutputTokens)
+}
+
+func TestOpenAIGatewayServiceForwardImages_APIKeyStreamCompletesWithoutWaitingForUpstreamClose(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":true,"response_format":"b64_json"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	release := make(chan struct{})
+	upstreamBody := io.NopCloser(io.MultiReader(
+		strings.NewReader("data: {\"type\":\"image_generation.completed\",\"b64_json\":\"ZmluYWw=\",\"output_format\":\"png\"}\n\n"),
+		waitForChannelReader(release),
+	))
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{},
+		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       upstreamBody,
+		}},
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+	account := &Account{ID: 8, Name: "openai-apikey", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-api-key"}}
+
+	resultCh := make(chan *OpenAIForwardResult, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		result, forwardErr := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+		resultCh <- result
+		errCh <- forwardErr
+	}()
+
+	select {
+	case result := <-resultCh:
+		require.NoError(t, <-errCh)
+		require.NotNil(t, result)
+		require.Equal(t, 1, result.ImageCount)
+	case <-time.After(time.Second):
+		t.Fatal("image stream did not finish after completed event")
+	}
+	close(release)
+}
+
+type channelReader struct {
+	release <-chan struct{}
+}
+
+func waitForChannelReader(release <-chan struct{}) io.Reader {
+	return channelReader{release: release}
+}
+
+func (r channelReader) Read([]byte) (int, error) {
+	<-r.release
+	return 0, io.EOF
 }
 
 func TestExtractOpenAIImagesBillableCountFromJSONBytes_CompletedEvent(t *testing.T) {

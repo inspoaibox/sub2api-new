@@ -547,7 +547,22 @@ export default {
     loadFailed: '加载模型广场失败',
     noSearchResult: '没有匹配的模型',
     anonymousHint: '登录后可查看你的专属分组与专属倍率',
+    stats: {
+      models: '可用模型',
+      groups: '可用分组',
+      platforms: '接入平台',
+      showing: '当前展示'
+    },
+    capabilities: {
+      label: '模型能力',
+      chat: '对话',
+      image: '绘画',
+      video: '视频',
+      embedding: '向量',
+      empty: '当前分类暂无可用模型'
+    },
     filters: {
+      title: '筛选模型',
       platformLabel: '平台',
       groupLabel: '分组',
       rateLabel: '倍率',
@@ -563,6 +578,15 @@ export default {
       noModels: '该分组暂未配置模型',
       noPricing: '未配置定价',
       peakNote: '高峰时段 {window} 计费倍率 ×{multiplier}'
+    },
+    card: {
+      yourPrice: '当前价格',
+      tokenBilling: '按 Token 计费',
+      group: '分组：{name}',
+      modelCount: '{count} 个模型',
+      tieredPrice: '起步档位：{tier}',
+      pricingDetails: '查看计费详情',
+      officialReference: '官方参考价格'
     },
     table: {
       model: '模型',

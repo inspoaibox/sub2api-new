@@ -155,9 +155,9 @@ func TestListPlazaGroups_CompositeAndOrdinaryGroupsDoNotLeakPlatforms(t *testing
 		byName[group.Name] = group
 	}
 	require.Len(t, byName["anthropic-only"].Models, 1)
-	require.Equal(t, []PlazaModel{{
-		Name: "claude-sonnet", Platform: PlatformAnthropic, Pricing: byName["anthropic-only"].Models[0].Pricing,
-	}}, byName["anthropic-only"].Models)
+	require.Equal(t, "claude-sonnet", byName["anthropic-only"].Models[0].Name)
+	require.Equal(t, PlatformAnthropic, byName["anthropic-only"].Models[0].Platform)
+	require.Equal(t, []string{PlazaCapabilityChat}, byName["anthropic-only"].Models[0].Capabilities)
 	require.Len(t, byName["composite"].Models, 2)
 	require.Equal(t, []string{"claude-sonnet", "gpt-5"}, []string{
 		byName["composite"].Models[0].Name,
@@ -307,6 +307,88 @@ func TestListPlazaGroups_GroupImagePriceIgnoredForNonImageModes(t *testing.T) {
 	require.Empty(t, p.Intervals)
 	require.NotNil(t, p.InputPrice)
 	require.Nil(t, p.PerRequestPrice)
+}
+
+func TestPlazaModelCapabilities(t *testing.T) {
+	pricingSvc := newStubPricingServiceFromMap(map[string]*LiteLLMModelPricing{
+		"provider-embedding": {Mode: "embedding"},
+		"provider-video":     {Mode: "video_generation"},
+	})
+	svc := newPlazaChannelService(nil, nil, pricingSvc)
+
+	tests := []struct {
+		name      string
+		modelName string
+		pricing   *ChannelModelPricing
+		want      []string
+	}{
+		{
+			name:      "image billing mode",
+			modelName: "configured-image",
+			pricing:   &ChannelModelPricing{BillingMode: BillingModeImage},
+			want:      []string{PlazaCapabilityImage},
+		},
+		{
+			name:      "video billing mode",
+			modelName: "configured-video",
+			pricing:   &ChannelModelPricing{BillingMode: BillingModeVideo},
+			want:      []string{PlazaCapabilityVideo},
+		},
+		{
+			name:      "litellm embedding mode",
+			modelName: "provider-embedding",
+			want:      []string{PlazaCapabilityEmbedding},
+		},
+		{
+			name:      "litellm video mode",
+			modelName: "provider-video",
+			want:      []string{PlazaCapabilityVideo},
+		},
+		{
+			name:      "name fallback image",
+			modelName: "gpt-image-2",
+			want:      []string{PlazaCapabilityImage},
+		},
+		{
+			name:      "name fallback vector",
+			modelName: "text-embedding-3-large",
+			want:      []string{PlazaCapabilityEmbedding},
+		},
+		{
+			name:      "unknown model defaults to chat",
+			modelName: "new-model-without-metadata",
+			want:      []string{PlazaCapabilityChat},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, svc.plazaModelCapabilities(tt.modelName, tt.pricing))
+		})
+	}
+}
+
+func TestListPlazaGroups_AddsModelCapabilities(t *testing.T) {
+	price := 0.02
+	channels := []Channel{{
+		ID: 1, Name: "media", Status: StatusActive, GroupIDs: []int64{10},
+		ModelPricing: []ChannelModelPricing{
+			{Platform: PlatformOpenAI, Models: []string{"gpt-image-2"}, BillingMode: BillingModeImage, PerRequestPrice: &price},
+			{Platform: PlatformOpenAI, Models: []string{"sora-2"}, BillingMode: BillingModeVideo, PerRequestPrice: &price},
+		},
+	}}
+	groups := []Group{{ID: 10, Name: "media", Platform: PlatformOpenAI, RateMultiplier: 1}}
+
+	out, err := newPlazaChannelService(channels, groups, nil).ListPlazaGroups(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	byName := map[string]PlazaModel{}
+	for _, model := range out[0].Models {
+		byName[model.Name] = model
+	}
+	require.Equal(t, []string{PlazaCapabilityImage}, byName["gpt-image-2"].Capabilities)
+	require.Equal(t, []string{PlazaCapabilityVideo}, byName["sora-2"].Capabilities)
 }
 
 func TestListPlazaGroups_RepoErrorsPropagate(t *testing.T) {

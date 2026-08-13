@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest'
 
 const componentPath = resolve(dirname(fileURLToPath(import.meta.url)), '../AppSidebar.vue')
 const componentSource = readFileSync(componentPath, 'utf8')
+const headerPath = resolve(dirname(fileURLToPath(import.meta.url)), '../AppHeader.vue')
+const headerSource = readFileSync(headerPath, 'utf8')
 const stylePath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../style.css')
 const styleSource = readFileSync(stylePath, 'utf8')
 
@@ -51,5 +53,23 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch).not.toBeNull()
     expect(sidebarHeaderBlockMatch?.[0]).not.toContain('@apply overflow-hidden;')
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
+  })
+})
+
+describe('model plaza navigation', () => {
+  it('places the feature-gated model plaza directly after API keys', () => {
+    const apiKeysIndex = componentSource.indexOf("{ path: '/keys', label: t('nav.apiKeys')")
+    const modelPlazaIndex = componentSource.indexOf("{ path: '/model-plaza', query: { embedded: '1' }")
+    const aiImageIndex = componentSource.indexOf("{ path: '/ai-image', label: t('nav.aiImageWorkbench')")
+
+    expect(apiKeysIndex).toBeGreaterThan(-1)
+    expect(modelPlazaIndex).toBeGreaterThan(apiKeysIndex)
+    expect(modelPlazaIndex).toBeLessThan(aiImageIndex)
+    expect(componentSource).toContain('featureFlag: flagModelPlaza')
+  })
+
+  it('does not duplicate the model plaza entry in the header', () => {
+    expect(headerSource).not.toContain("path: '/model-plaza'")
+    expect(headerSource).not.toContain("t('nav.modelPlaza')")
   })
 })

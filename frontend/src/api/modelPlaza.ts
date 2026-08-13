@@ -18,11 +18,16 @@ export interface PlazaOfficialPricing {
   cache_read_price: number | null
 }
 
+export const PLAZA_MODEL_CAPABILITIES = ['chat', 'image', 'video', 'embedding'] as const
+export type PlazaModelCapability = (typeof PLAZA_MODEL_CAPABILITIES)[number]
+
 export interface PlazaModel {
   name: string
   platform: string
   pricing: UserSupportedModelPricing | null
   official_pricing: PlazaOfficialPricing | null
+  /** 模型能力标签；兼容尚未升级的服务端响应，字段缺失时前端按对话模型展示。 */
+  capabilities?: PlazaModelCapability[]
 }
 
 export interface ModelPlazaGroup {

@@ -229,6 +229,32 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/ai-image',
+    name: 'AIImageWorkbench',
+    component: () => import('@/views/user/AIWorkbenchView.vue'),
+    props: { mode: 'image' },
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'AI Drawing',
+      titleKey: 'nav.aiImageWorkbench',
+      descriptionKey: 'nav.aiImageWorkbenchDescription'
+    }
+  },
+  {
+    path: '/ai-video',
+    name: 'AIVideoWorkbench',
+    component: () => import('@/views/user/AIWorkbenchView.vue'),
+    props: { mode: 'video' },
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'AI Video',
+      titleKey: 'nav.aiVideoWorkbench',
+      descriptionKey: 'nav.aiVideoWorkbenchDescription'
+    }
+  },
+  {
     path: '/usage',
     name: 'Usage',
     component: () => import('@/views/user/UsageView.vue'),

@@ -937,14 +937,25 @@ func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
 		mergeOpenAIUsage(&usage, dataBytes)
 		imageCounter.AddSSEData(dataBytes)
 	}
-
-	flushSSEEvent := func() {
-		sseData.Flush(processSSEData)
+	streamCompleted := false
+	processSSEDataWithCompletion := func(dataBytes []byte) {
+		processSSEData(dataBytes)
+		if imageCounter.Count() <= 0 || !gjson.ValidBytes(dataBytes) {
+			return
+		}
+		switch strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String()) {
+		case "image_generation.completed", "response.completed", "response.done":
+			streamCompleted = true
+		}
 	}
 
-	processLine := func(line []byte) {
+	flushSSEEvent := func() {
+		sseData.Flush(processSSEDataWithCompletion)
+	}
+
+	processLine := func(line []byte) bool {
 		if len(line) == 0 {
-			return
+			return streamCompleted
 		}
 		if firstTokenMs == nil {
 			ms := int(time.Since(startTime).Milliseconds())
@@ -962,8 +973,8 @@ func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
 
 		trimmedLine := strings.TrimRight(string(line), "\r\n")
 		if _, ok := extractOpenAISSEDataLine(trimmedLine); ok || strings.TrimSpace(trimmedLine) == "" {
-			sseData.AddLine(trimmedLine, processSSEData)
-			return
+			sseData.AddLine(trimmedLine, processSSEDataWithCompletion)
+			return streamCompleted
 		}
 		if !seenSSEData && !fallbackTooLarge {
 			fallbackBytes += int64(len(line))
@@ -974,6 +985,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
 				fallbackBody.Reset()
 			}
 		}
+		return streamCompleted
 	}
 
 	finalizeFallbackBody := func() {
@@ -994,7 +1006,10 @@ func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
 		reader := bufio.NewReader(resp.Body)
 		for {
 			line, err := reader.ReadBytes('\n')
-			processLine(line)
+			if processLine(line) {
+				flushSSEEvent()
+				return usage, imageCounter.Count(), imageCounter.Sizes(), firstTokenMs, nil
+			}
 			if err == io.EOF {
 				break
 			}
@@ -1078,7 +1093,9 @@ func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
 				flushSSEEvent()
 				return usage, imageCounter.Count(), imageCounter.Sizes(), firstTokenMs, ev.err
 			}
-			processLine(ev.line)
+			if processLine(ev.line) {
+				return usage, imageCounter.Count(), imageCounter.Sizes(), firstTokenMs, nil
+			}
 		case <-intervalCh:
 			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
 			if time.Since(lastRead) < streamInterval {
