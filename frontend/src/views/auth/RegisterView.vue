@@ -1,8 +1,13 @@
 <template>
-  <AuthLayout>
-    <div class="space-y-6">
+  <AuthLayout variant="register">
+    <div class="register-content space-y-6">
       <!-- Title -->
-      <div class="text-center">
+      <div class="register-heading">
+        <div class="register-heading-mark" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
         <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
           {{ t('auth.createAccount') }}
         </h2>
@@ -50,6 +55,7 @@
               :placeholder="t('auth.emailPlaceholder')"
             />
           </div>
+          <p v-if="errors.email" class="input-error-text">{{ errors.email }}</p>
         </div>
 
         <!-- Password Input -->
@@ -85,6 +91,7 @@
           <p class="input-hint">
             {{ t('auth.passwordHint') }}
           </p>
+          <p v-if="errors.password" class="input-error-text">{{ errors.password }}</p>
         </div>
 
         <!-- Invitation Code Input (Required when enabled) -->
@@ -132,6 +139,7 @@
               </span>
             </div>
           </transition>
+          <p v-if="errors.invitation_code" class="input-error-text">{{ errors.invitation_code }}</p>
         </div>
 
         <!-- Affiliate Invitation Code Input (Optional) -->
@@ -238,7 +246,7 @@
         <button
           type="submit"
           :disabled="registrationActionDisabled || (turnstileEnabled && !turnstileToken)"
-          class="btn btn-primary w-full"
+          class="btn btn-primary register-submit w-full"
         >
           <svg
             v-if="isLoading"
@@ -270,9 +278,14 @@
           }}
         </button>
 
+        <p v-if="errorMessage" class="register-error" role="alert">
+          <Icon name="exclamationCircle" size="sm" />
+          <span>{{ errorMessage }}</span>
+        </p>
+
       </form>
 
-      <div v-if="showOAuthLogin" class="space-y-3 pt-1">
+      <div v-if="showOAuthLogin" class="register-alternatives space-y-3 pt-1">
         <div class="flex items-center gap-3">
           <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
           <span class="text-xs text-gray-500 dark:text-dark-400">
@@ -1063,9 +1076,129 @@ function buildRegistrationErrorMessage(error: unknown, fallback: string): string
 </script>
 
 <style scoped>
+.register-content {
+  min-width: 0;
+}
+
+.register-heading {
+  text-align: left;
+}
+
+.register-heading-mark {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 18px;
+  margin-bottom: 18px;
+}
+
+.register-heading-mark span {
+  display: block;
+  width: 4px;
+  border-radius: 2px;
+  background: #0891b2;
+}
+
+.register-heading-mark span:nth-child(1) {
+  height: 18px;
+}
+
+.register-heading-mark span:nth-child(2) {
+  height: 14px;
+  opacity: 0.7;
+}
+
+.register-heading-mark span:nth-child(3) {
+  height: 8px;
+  opacity: 0.45;
+}
+
+.register-content :deep(.input) {
+  min-height: 50px;
+  border-radius: 13px;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.register-content :deep(.input:focus) {
+  box-shadow: 0 0 0 4px rgba(8, 145, 178, 0.1), 0 10px 24px rgba(8, 145, 178, 0.06);
+}
+
+.register-content :deep(.input-error) {
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.08);
+}
+
+.register-submit {
+  min-height: 52px;
+  border-radius: 13px;
+  background: linear-gradient(110deg, #4f46e5, #0891b2);
+  box-shadow: 0 14px 28px rgba(8, 145, 178, 0.18);
+}
+
+.register-submit:not(:disabled):hover {
+  transform: translateY(-1px);
+  background: linear-gradient(110deg, #4338ca, #0e7490);
+}
+
+.register-submit:not(:disabled):active {
+  transform: translateY(0) scale(0.98);
+}
+
+.register-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: -4px;
+  padding: 11px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  border-radius: 10px;
+  background: rgba(254, 242, 242, 0.82);
+  color: #b91c1c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.register-alternatives {
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  padding-top: 20px;
+}
+
+.register-alternatives :deep(.btn-secondary) {
+  min-height: 48px;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.dark .register-content :deep(.input) {
+  background: rgba(15, 23, 42, 0.76);
+}
+
+.dark .register-content :deep(.input:focus) {
+  box-shadow: 0 0 0 4px rgba(8, 145, 178, 0.15), 0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
+.dark .register-error {
+  border-color: rgba(248, 113, 113, 0.2);
+  background: rgba(127, 29, 29, 0.22);
+  color: #fca5a5;
+}
+
+.dark .register-alternatives :deep(.btn-secondary) {
+  background: rgba(15, 23, 42, 0.62);
+}
+
+@media (max-width: 640px) {
+  .register-heading {
+    text-align: center;
+  }
+
+  .register-heading-mark {
+    justify-content: center;
+  }
+}
+
 .fade-enter-active,
 .fade-leave-active {
-  transition: all 0.3s ease;
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
 }
 
 .fade-enter-from,

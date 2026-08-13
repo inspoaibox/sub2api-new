@@ -1,8 +1,13 @@
 <template>
-  <AuthLayout>
-    <div class="space-y-6">
+  <AuthLayout variant="login">
+    <div class="login-content space-y-6">
       <!-- Title -->
-      <div class="text-center">
+      <div class="login-heading">
+        <div class="login-heading-mark" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
         <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
           {{ t('auth.welcomeBack') }}
         </h2>
@@ -11,7 +16,7 @@
         </p>
       </div>
       <!-- Login Form -->
-      <form @submit.prevent="handleLogin" class="space-y-5">
+      <form @submit.prevent="handleLogin" class="login-form space-y-5">
         <!-- Email Input -->
         <div>
           <label for="email" class="input-label">
@@ -34,6 +39,7 @@
               :placeholder="t('auth.emailPlaceholder')"
             />
           </div>
+          <p v-if="errors.email" class="input-error-text">{{ errors.email }}</p>
         </div>
 
         <!-- Password Input -->
@@ -67,7 +73,10 @@
             </button>
           </div>
           <div class="mt-1 flex items-center justify-between">
-            <span></span>
+            <span v-if="formData.email" class="login-field-status">
+              <span class="login-field-status-dot"></span>
+              {{ t('auth.emailLabel') }}
+            </span>
             <router-link
               v-if="passwordResetEnabled && !backendModeEnabled"
               to="/forgot-password"
@@ -76,6 +85,7 @@
               {{ t('auth.forgotPassword') }}
             </router-link>
           </div>
+          <p v-if="errors.password" class="input-error-text">{{ errors.password }}</p>
         </div>
 
         <!-- Turnstile Widget -->
@@ -101,7 +111,7 @@
         <button
           type="submit"
           :disabled="authActionDisabled || (turnstileEnabled && !turnstileToken)"
-          class="btn btn-primary w-full"
+          class="btn btn-primary login-submit w-full"
         >
           <svg
             v-if="isLoading"
@@ -127,6 +137,11 @@
           {{ isLoading ? t('auth.signingIn') : t('auth.signIn') }}
         </button>
 
+        <p v-if="errorMessage" class="login-error" role="alert">
+          <Icon name="exclamationCircle" size="sm" />
+          <span>{{ errorMessage }}</span>
+        </p>
+
         <LoginAgreementPrompt
           v-if="loginAgreementEnabled"
           :accepted="agreementAccepted"
@@ -139,7 +154,7 @@
           @open="showAgreementModal = true"
         />
 
-        <div v-if="showPasskeyLogin || showOAuthLogin" class="space-y-3 pt-1">
+        <div v-if="showPasskeyLogin || showOAuthLogin" class="login-alternatives space-y-3 pt-1">
           <div class="flex items-center gap-3">
             <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
             <span class="text-xs text-gray-500 dark:text-dark-400">
@@ -732,9 +747,142 @@ function handle2FACancel(): void {
 </script>
 
 <style scoped>
+.login-content {
+  min-width: 0;
+}
+
+.login-heading {
+  text-align: left;
+}
+
+.login-heading-mark {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 18px;
+  margin-bottom: 18px;
+}
+
+.login-heading-mark span {
+  display: block;
+  width: 4px;
+  border-radius: 2px;
+  background: #4f46e5;
+}
+
+.login-heading-mark span:nth-child(1) {
+  height: 8px;
+  opacity: 0.45;
+}
+
+.login-heading-mark span:nth-child(2) {
+  height: 14px;
+  opacity: 0.7;
+}
+
+.login-heading-mark span:nth-child(3) {
+  height: 18px;
+}
+
+.login-form :deep(.input) {
+  min-height: 52px;
+  border-radius: 13px;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.login-form :deep(.input:focus) {
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1), 0 10px 24px rgba(79, 70, 229, 0.06);
+}
+
+.login-form :deep(.input-error) {
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.08);
+}
+
+.login-field-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.login-field-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+.login-submit {
+  min-height: 52px;
+  border-radius: 13px;
+  box-shadow: 0 14px 28px rgba(79, 70, 229, 0.2);
+}
+
+.login-submit:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.login-submit:not(:disabled):active {
+  transform: translateY(0) scale(0.98);
+}
+
+.login-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: -4px;
+  padding: 11px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  border-radius: 10px;
+  background: rgba(254, 242, 242, 0.82);
+  color: #b91c1c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.login-alternatives {
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  padding-top: 20px;
+}
+
+.login-alternatives :deep(.btn-secondary) {
+  min-height: 48px;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.dark .login-form :deep(.input) {
+  background: rgba(15, 23, 42, 0.76);
+}
+
+.dark .login-form :deep(.input:focus) {
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.16), 0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
+.dark .login-error {
+  border-color: rgba(248, 113, 113, 0.2);
+  background: rgba(127, 29, 29, 0.22);
+  color: #fca5a5;
+}
+
+.dark .login-alternatives :deep(.btn-secondary) {
+  background: rgba(15, 23, 42, 0.62);
+}
+
+@media (max-width: 640px) {
+  .login-heading {
+    text-align: center;
+  }
+
+  .login-heading-mark {
+    justify-content: center;
+  }
+}
+
 .fade-enter-active,
 .fade-leave-active {
-  transition: all 0.3s ease;
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
 }
 
 .fade-enter-from,
