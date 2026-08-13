@@ -34,4 +34,21 @@ describe('BaseDialog', () => {
     expect(document.body.querySelector<HTMLElement>('.modal-body')?.scrollTop).toBe(0)
     wrapper.unmount()
   })
+
+  it('does not close when the backdrop is clicked by default', async () => {
+    const wrapper = mount(BaseDialog, {
+      attachTo: document.body,
+      props: { show: false, title: 'Payment' },
+      global: { stubs: { Icon: true, Transition: false } },
+    })
+
+    await wrapper.setProps({ show: true })
+    await nextTick()
+    const overlay = document.body.querySelector<HTMLElement>('.modal-overlay')
+    expect(overlay).not.toBeNull()
+    overlay!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+    expect(wrapper.emitted('close')).toBeUndefined()
+    wrapper.unmount()
+  })
 })

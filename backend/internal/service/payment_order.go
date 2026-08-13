@@ -742,6 +742,12 @@ func buildCreateOrderResponse(order *dbent.PaymentOrder, req CreateOrderRequest,
 		PayURL:       pr.PayURL,
 		QRCode:       pr.QRCode,
 		ClientSecret: pr.ClientSecret,
+		PublishableKey: func() string {
+			if sel != nil && sel.ProviderKey == payment.TypeStripe {
+				return strings.TrimSpace(sel.Config[payment.ConfigKeyPublishableKey])
+			}
+			return ""
+		}(),
 		IntentID:     pr.IntentID,
 		Currency:     pr.Currency,
 		CountryCode:  pr.CountryCode,

@@ -77,6 +77,7 @@ describe('decidePaymentLaunch', () => {
   it('uses Stripe popup waiting flow for desktop Alipay client secret', () => {
     const decision = decidePaymentLaunch(createOrderResult({
       client_secret: 'cs_test',
+      publishable_key: 'pk_test_instance_1',
       resume_token: 'resume-1',
     }), {
       visibleMethod: 'alipay',
@@ -89,6 +90,7 @@ describe('decidePaymentLaunch', () => {
     expect(decision.stripeMethod).toBe('alipay')
     expect(decision.recovery.resumeToken).toBe('resume-1')
     expect(decision.recovery.outTradeNo).toBe('')
+    expect(decision.recovery.publishableKey).toBe('pk_test_instance_1')
   })
 
   it('routes Stripe button click to the full Payment Element without a preselected sub-method', () => {

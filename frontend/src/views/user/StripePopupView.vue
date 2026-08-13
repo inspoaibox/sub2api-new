@@ -40,6 +40,13 @@
         </button>
       </div>
 
+      <!-- WeChat QR: keep it in this page so clicking an overlay cannot dismiss it. -->
+      <div v-else-if="wechatQrUrl" class="space-y-4 py-4 text-center">
+        <p class="text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('payment.qr.scanWxpay') }}</p>
+        <img :src="wechatQrUrl" alt="WeChat Pay QR" class="mx-auto h-56 w-56 rounded border border-green-200" />
+        <p class="text-sm text-gray-500 dark:text-slate-400">{{ t('payment.qr.waitingPayment') }}</p>
+      </div>
+
       <!-- Loading / Redirecting -->
       <div v-else class="flex items-center justify-center py-8">
         <div
@@ -57,11 +64,20 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { extractI18nErrorMessage } from '@/utils/apiError'
-import { isMobileDevice } from '@/utils/device'
 import { buildApiUrl } from '@/api/client'
 
 interface StripeWithWechatPay {
-  confirmWechatPayPayment(clientSecret: string, options: Record<string, unknown>): Promise<{ error?: { message?: string }; paymentIntent?: { status: string } }>
+  confirmWechatPayPayment(
+    clientSecret: string,
+    data: Record<string, unknown>,
+    options: { handleActions: false },
+  ): Promise<{
+    error?: { message?: string }
+    paymentIntent?: {
+      status: string
+      next_action?: { wechat_pay_display_qr_code?: { image_data_url?: string } }
+    }
+  }>
 }
 
 const METHOD_COLORS: Record<string, string> = {
@@ -81,6 +97,7 @@ const methodColor = computed(() => METHOD_COLORS[method] || DEFAULT_METHOD_COLOR
 
 const error = ref('')
 const success = ref(false)
+const wechatQrUrl = ref('')
 const hint = ref(t('payment.stripePopup.redirecting'))
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -148,18 +165,23 @@ async function initStripe(clientSecret: string, publishableKey: string) {
       const { error: err } = await stripe.confirmAlipayPayment(clientSecret, { return_url: returnUrl })
       if (err) error.value = err.message || t('payment.result.failed')
     } else if (method === 'wechat_pay') {
-      // WeChat: Stripe shows its built-in QR dialog, user scans, promise resolves
+      // WeChat: request the QR data without letting Stripe open a dismissible layer.
       hint.value = t('payment.stripePopup.loadingQr')
       const result = await (stripe as unknown as StripeWithWechatPay).confirmWechatPayPayment(clientSecret, {
-        payment_method_options: { wechat_pay: { client: isMobileDevice() ? 'mobile_web' : 'web' } },
-      })
+        payment_method_options: { wechat_pay: { client: 'web' } },
+      }, { handleActions: false })
       if (result.error) {
         error.value = result.error.message || t('payment.result.failed')
+      } else if (result.paymentIntent?.next_action?.wechat_pay_display_qr_code?.image_data_url) {
+        wechatQrUrl.value = result.paymentIntent.next_action.wechat_pay_display_qr_code.image_data_url
+        hint.value = t('payment.qr.waitingPayment')
+        startPolling()
       } else if (result.paymentIntent?.status === 'succeeded') {
-        success.value = true
-        setTimeout(closeWindow, 2000)
+        hint.value = t('payment.result.processing')
+        startPolling()
       } else {
-        // Payment not completed (user closed QR dialog)
+        // Keep checking after the user closes the payment layer.
+        hint.value = t('payment.result.processing')
         startPolling()
       }
     }
@@ -185,7 +207,7 @@ function startPolling() {
       if (!res.ok) return
       const data = await res.json()
       const status = data?.data?.status
-      if (status === 'COMPLETED' || status === 'PAID') {
+      if (status === 'COMPLETED') {
         if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
         success.value = true
         setTimeout(closeWindow, 2000)

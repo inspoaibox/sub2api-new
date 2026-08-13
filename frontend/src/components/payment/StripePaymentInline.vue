@@ -35,6 +35,15 @@
         </div>
       </div>
     </template>
+    <template v-else-if="processing">
+      <div class="card p-6 text-center">
+        <div class="flex flex-col items-center gap-3 py-4">
+          <div class="h-12 w-12 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+          <p class="text-lg font-bold text-gray-900 dark:text-white">{{ t('payment.result.processing') }}</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.stripeSuccessProcessing') }}</p>
+        </div>
+      </div>
+    </template>
     <template v-else>
       <!-- Amount -->
       <div class="card overflow-hidden">
@@ -64,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { extractI18nErrorMessage } from '@/utils/apiError'
@@ -101,6 +110,7 @@ const error = ref('')
 const submitting = ref(false)
 const cancelling = ref(false)
 const success = ref(false)
+const processing = ref(false)
 const ready = ref(false)
 const selectedType = ref('')
 const creditedAmountSymbol = currencySymbol('USD')
@@ -108,6 +118,7 @@ const paymentAmountSymbol = computed(() => currencySymbol(props.currency))
 
 let stripeInstance: Stripe | null = null
 let elementsInstance: StripeElements | null = null
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(async () => {
   try {
@@ -186,14 +197,36 @@ async function handlePay() {
     if (stripeError) {
       error.value = stripeError.message || t('payment.result.failed')
     } else {
-      success.value = true
-      emit('success')
+      processing.value = true
+      startPolling()
     }
   } catch (err: unknown) {
     error.value = extractI18nErrorMessage(err, t, 'payment.errors', t('payment.result.failed'))
   } finally {
     submitting.value = false
   }
+}
+
+function startPolling() {
+  if (pollTimer) return
+  pollTimer = setInterval(async () => {
+    try {
+      const result = await paymentAPI.getOrder(props.orderId)
+      const status = result.data?.status
+      if (status === 'COMPLETED') {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+        processing.value = false
+        success.value = true
+        emit('success')
+      } else if (status === 'EXPIRED' || status === 'CANCELLED' || status === 'FAILED') {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+        processing.value = false
+        error.value = t('payment.result.failed')
+      }
+    } catch {
+      // Keep polling while the order endpoint is temporarily unavailable.
+    }
+  }, 3000)
 }
 
 async function handleCancel() {
@@ -208,4 +241,8 @@ async function handleCancel() {
     cancelling.value = false
   }
 }
+
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+})
 </script>

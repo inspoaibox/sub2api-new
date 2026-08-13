@@ -65,6 +65,16 @@
           </div>
         </template>
 
+        <template v-else-if="stripeProcessing">
+          <div class="card p-6 text-center">
+            <div class="flex flex-col items-center gap-3 py-4">
+              <div class="h-12 w-12 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+              <p class="text-lg font-bold text-gray-900 dark:text-white">{{ t('payment.result.processing') }}</p>
+              <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.stripeSuccessProcessing') }}</p>
+            </div>
+          </div>
+        </template>
+
         <!-- 无指定方式或未知方式时展示完整 Payment Element -->
         <template v-else-if="showPaymentElement">
           <div class="card p-6">
@@ -100,7 +110,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { usePaymentStore } from '@/stores/payment'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
-import { isMobileDevice } from '@/utils/device'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import { PAYMENT_RECOVERY_STORAGE_KEY, readPaymentRecoverySnapshot } from '@/components/payment/paymentFlow'
 import type { PaymentOrder } from '@/types/payment'
@@ -122,6 +131,7 @@ const initError = ref('')
 const stripeError = ref('')
 const stripeSubmitting = ref(false)
 const stripeSuccess = ref(false)
+const stripeProcessing = ref(false)
 const stripeReady = ref(false)
 const order = ref<PaymentOrder | null>(null)
 const currency = ref('CNY')
@@ -135,11 +145,12 @@ let redirectTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
   const orderId = Number(route.query.order_id)
-  const clientSecret = String(route.query.client_secret || '')
+  let clientSecret = String(route.query.client_secret || '')
+  let publishableKey = String(route.query.publishable_key || '')
   const method = String(route.query.method || '')
   const resumeToken = typeof route.query.resume_token === 'string' ? route.query.resume_token : undefined
 
-  if (!orderId || !clientSecret) {
+  if (!orderId) {
     loading.value = false
     initError.value = t('payment.stripeMissingParams')
     return
@@ -153,7 +164,13 @@ onMounted(async () => {
       )
       if (restored?.orderId === orderId) {
         currency.value = normalizePaymentCurrency(restored.currency)
+        clientSecret = clientSecret || restored.clientSecret
+        publishableKey = publishableKey || restored.publishableKey || ''
       }
+    }
+    if (!clientSecret) {
+      initError.value = t('payment.stripeMissingParams')
+      return
     }
     const res = await paymentAPI.getOrder(orderId)
     order.value = res.data
@@ -161,8 +178,10 @@ onMounted(async () => {
       currency.value = normalizePaymentCurrency(res.data.currency)
     }
 
-    await paymentStore.fetchConfig()
-    const publishableKey = paymentStore.config?.stripe_publishable_key
+    if (!publishableKey) {
+      await paymentStore.fetchConfig()
+      publishableKey = paymentStore.config?.stripe_publishable_key || ''
+    }
     if (!publishableKey) { initError.value = t('payment.stripeNotConfigured'); return }
 
     const { loadStripe } = await import('@stripe/stripe-js/pure')
@@ -216,10 +235,20 @@ async function confirmAlipay(stripe: Stripe, clientSecret: string, orderId: numb
 
 async function confirmWechatPay(stripe: Stripe, clientSecret: string) {
   const { paymentIntent, error } = await (stripe as Stripe & {
-    confirmWechatPayPayment: (cs: string, opts: Record<string, unknown>) => Promise<{ paymentIntent?: { status: string; next_action?: { wechat_pay_display_qr_code?: { image_data_url?: string } } }; error?: { message?: string } }>
+    confirmWechatPayPayment: (
+      cs: string,
+      data: Record<string, unknown>,
+      options: { handleActions: false },
+    ) => Promise<{
+      paymentIntent?: {
+        status: string
+        next_action?: { wechat_pay_display_qr_code?: { image_data_url?: string } }
+      }
+      error?: { message?: string }
+    }>
   }).confirmWechatPayPayment(clientSecret, {
-    payment_method_options: { wechat_pay: { client: isMobileDevice() ? 'mobile_web' : 'web' } },
-  })
+    payment_method_options: { wechat_pay: { client: 'web' } },
+  }, { handleActions: false })
 
   if (error) {
     stripeError.value = error.message || t('payment.result.failed')
@@ -230,13 +259,17 @@ async function confirmWechatPay(stripe: Stripe, clientSecret: string) {
   const qrData = paymentIntent?.next_action?.wechat_pay_display_qr_code?.image_data_url
   if (qrData) {
     wechatQrUrl.value = qrData
+    stripeProcessing.value = true
     // 轮询支付完成状态
     startPolling()
   } else if (paymentIntent?.status === 'succeeded') {
-    stripeSuccess.value = true
-    scheduleClose()
+    stripeProcessing.value = true
+    startPolling()
   } else {
-    stripeError.value = t('payment.result.failed')
+    // The user may close a payment layer before scanning. Keep the order
+    // pending and continue checking the backend instead of treating it as a failure.
+    stripeProcessing.value = true
+    startPolling()
   }
 }
 
@@ -270,8 +303,8 @@ async function handleGenericPay() {
     if (error) {
       stripeError.value = error.message || t('payment.result.failed')
     } else {
-      stripeSuccess.value = true
-      scheduleClose()
+      stripeProcessing.value = true
+      startPolling()
     }
   } catch (err: unknown) {
     stripeError.value = extractI18nErrorMessage(err, t, 'payment.errors', t('payment.result.failed'))
@@ -288,8 +321,9 @@ function startPolling() {
   pollTimer = setInterval(async () => {
     const o = await paymentStore.pollOrderStatus(orderId)
     if (!o) return
-    if (o.status === 'COMPLETED' || o.status === 'PAID') {
+    if (o.status === 'COMPLETED') {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+      stripeProcessing.value = false
       stripeSuccess.value = true
       wechatQrUrl.value = ''
       scheduleClose()

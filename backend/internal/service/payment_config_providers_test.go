@@ -259,6 +259,28 @@ func TestIsSensitiveProviderConfigField(t *testing.T) {
 	}
 }
 
+func TestEncryptConfigRequiresFixedKey(t *testing.T) {
+	t.Parallel()
+
+	svc := &PaymentConfigService{}
+	_, err := svc.encryptConfig(map[string]string{"secretKey": "secret"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "TOTP_ENCRYPTION_KEY")
+}
+
+func TestEncryptConfigUsesAESGCM(t *testing.T) {
+	t.Parallel()
+
+	svc := &PaymentConfigService{encryptionKey: []byte("0123456789abcdef0123456789abcdef")}
+	stored, err := svc.encryptConfig(map[string]string{"secretKey": "secret"})
+	require.NoError(t, err)
+	require.NotContains(t, stored, "secretKey")
+
+	cfg, err := svc.decryptConfig(stored)
+	require.NoError(t, err)
+	require.Equal(t, "secret", cfg["secretKey"])
+}
+
 func TestJoinTypes(t *testing.T) {
 	t.Parallel()
 

@@ -171,7 +171,7 @@ describe('PaymentResultView', () => {
     }))
     resolveOrderPublicByResumeToken.mockResolvedValue({
       data: {
-        ...orderFactory('PAID'),
+        ...orderFactory('COMPLETED'),
         amount: 100,
         pay_amount: 103,
         fee_rate: 3,
@@ -196,7 +196,7 @@ describe('PaymentResultView', () => {
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()
   })
 
-  it('refreshes a pending resume-token result until the order becomes paid', async () => {
+  it('refreshes a pending resume-token result until fulfillment completes', async () => {
     vi.useFakeTimers()
     routeState.query = {
       resume_token: 'resume-77',
@@ -210,7 +210,7 @@ describe('PaymentResultView', () => {
         data: orderFactory('PENDING'),
       })
       .mockResolvedValueOnce({
-        data: orderFactory('PAID'),
+        data: orderFactory('COMPLETED'),
       })
 
     const wrapper = mount(PaymentResultView, {
@@ -250,7 +250,7 @@ describe('PaymentResultView', () => {
     )
     resolveOrderPublicByResumeToken.mockRejectedValueOnce(new Error('resume failed'))
     pollOrderStatus.mockResolvedValueOnce({
-      ...orderFactory('PAID'),
+      ...orderFactory('COMPLETED'),
       id: 77,
     })
 
@@ -280,7 +280,7 @@ describe('PaymentResultView', () => {
     resolveOrderPublicByResumeToken.mockRejectedValueOnce(new Error('resume failed'))
     verifyOrderPublic.mockResolvedValueOnce({
       data: {
-        ...orderFactory('PAID'),
+        ...orderFactory('COMPLETED'),
         out_trade_no: 'legacy-should-not-run',
       },
     })
@@ -334,7 +334,7 @@ describe('PaymentResultView', () => {
     }
     verifyOrder.mockRejectedValue(new Error('auth required'))
     verifyOrderPublic.mockResolvedValue({
-      data: orderFactory('PAID'),
+      data: orderFactory('COMPLETED'),
     })
 
     const wrapper = mount(PaymentResultView, {
@@ -353,7 +353,7 @@ describe('PaymentResultView', () => {
     expect(wrapper.text()).toContain('payment.result.success')
   })
 
-  it('renders the minimal public out_trade_no verification result without payment_type', async () => {
+  it('keeps a paid public order processing until balance fulfillment completes', async () => {
     routeState.query = {
       out_trade_no: 'legacy-minimal',
       trade_status: 'TRADE_SUCCESS',
@@ -379,7 +379,8 @@ describe('PaymentResultView', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).toContain('payment.result.success')
+    expect(wrapper.text()).toContain('payment.result.processing')
+    expect(wrapper.text()).not.toContain('payment.result.success')
     expect(wrapper.text()).toContain('legacy-minimal')
     expect(wrapper.text()).not.toContain('payment.orders.paymentMethod')
   })
@@ -431,7 +432,7 @@ describe('PaymentResultView', () => {
       resume_token: 'resume-77',
     }
     resolveOrderPublicByResumeToken.mockResolvedValue({
-      data: orderFactory('PAID'),
+      data: orderFactory('COMPLETED'),
     })
 
     const wrapper = mount(PaymentResultView, {
@@ -454,7 +455,7 @@ describe('PaymentResultView', () => {
     }
     resolveOrderPublicByResumeToken.mockResolvedValue({
       data: {
-        ...orderFactory('PAID'),
+        ...orderFactory('COMPLETED'),
         currency: 'HKD',
         amount: 100,
         pay_amount: 103,
@@ -481,7 +482,7 @@ describe('PaymentResultView', () => {
     }
     resolveOrderPublicByResumeToken.mockResolvedValueOnce({
       data: {
-        ...orderFactory('PAID'),
+        ...orderFactory('COMPLETED'),
         payment_type: 'alipay_direct',
       },
     })

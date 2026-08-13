@@ -40,6 +40,8 @@ export interface PaymentRecoverySnapshot {
   payUrl: string
   outTradeNo: string
   clientSecret: string
+  /** Stripe publishable key belonging to this order's provider instance. */
+  publishableKey?: string
   intentId: string
   currency: string
   countryCode: string
@@ -160,6 +162,7 @@ export function decidePaymentLaunch(
     payUrl: result.pay_url || '',
     outTradeNo: result.out_trade_no || '',
     clientSecret: result.client_secret || '',
+    publishableKey: result.publishable_key || '',
     intentId: result.intent_id || '',
     currency: result.currency || '',
     countryCode: result.country_code || '',
@@ -288,6 +291,7 @@ export function readPaymentRecoverySnapshot(
       || typeof parsed.payUrl !== 'string'
       || (parsed.outTradeNo != null && typeof parsed.outTradeNo !== 'string')
       || typeof parsed.clientSecret !== 'string'
+      || (parsed.publishableKey != null && typeof parsed.publishableKey !== 'string')
       || (parsed.intentId != null && typeof parsed.intentId !== 'string')
       || (parsed.currency != null && typeof parsed.currency !== 'string')
       || (parsed.countryCode != null && typeof parsed.countryCode !== 'string')
@@ -319,6 +323,7 @@ export function readPaymentRecoverySnapshot(
       payUrl: parsed.payUrl,
       outTradeNo: parsed.outTradeNo || '',
       clientSecret: parsed.clientSecret,
+      publishableKey: parsed.publishableKey || '',
       intentId: parsed.intentId || '',
       currency: parsed.currency || '',
       countryCode: parsed.countryCode || '',

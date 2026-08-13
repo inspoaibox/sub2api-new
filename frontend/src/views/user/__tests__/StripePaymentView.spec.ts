@@ -131,4 +131,33 @@ describe('StripePaymentView', () => {
     expect(loadStripe).toHaveBeenCalledWith('pk_test')
     expect(wrapper.text()).toContain(formatPaymentAmount(103, 'HKD', 'zh-CN'))
   })
+
+  it('微信支付由本站展示二维码，不使用 Stripe 可点击遮罩的内置弹层', async () => {
+    routeState.query = {
+      order_id: '42',
+      client_secret: 'pi_secret_42',
+      method: 'wechat_pay',
+    }
+    getOrder.mockResolvedValue({ data: orderFactory() })
+    stripeInstance.confirmWechatPayPayment.mockResolvedValue({
+      paymentIntent: {
+        status: 'requires_action',
+        next_action: {
+          wechat_pay_display_qr_code: { image_data_url: 'data:image/png;base64,wechat-qr' },
+        },
+      },
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await flushPromises()
+
+    expect(stripeInstance.confirmWechatPayPayment).toHaveBeenCalledWith(
+      'pi_secret_42',
+      expect.objectContaining({ payment_method_options: expect.any(Object) }),
+      { handleActions: false },
+    )
+    expect(wrapper.find('img[alt="WeChat Pay QR"]').attributes('src')).toBe('data:image/png;base64,wechat-qr')
+    wrapper.unmount()
+  })
 })

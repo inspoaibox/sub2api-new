@@ -30,10 +30,28 @@ type Stripe struct {
 
 // NewStripe creates a new Stripe provider instance.
 func NewStripe(instanceID string, config map[string]string) (*Stripe, error) {
-	if config["secretKey"] == "" {
-		return nil, fmt.Errorf("stripe config missing required key: secretKey")
-	}
 	cfg := cloneStringMap(config)
+	for _, key := range []string{"secretKey", "publishableKey", "webhookSecret"} {
+		cfg[key] = strings.TrimSpace(cfg[key])
+		if cfg[key] == "" {
+			return nil, fmt.Errorf("stripe config missing required key: %s", key)
+		}
+	}
+	// Stripe publishable and secret keys must belong to the same mode. Only
+	// reject recognizable Stripe key pairs so legacy test or proxy keys remain
+	// compatible with the provider configuration format.
+	if strings.HasPrefix(cfg["secretKey"], "sk_test_") && !strings.HasPrefix(cfg["publishableKey"], "pk_test_") {
+		return nil, fmt.Errorf("stripe config key mode mismatch: secretKey is test mode but publishableKey is not")
+	}
+	if strings.HasPrefix(cfg["secretKey"], "sk_live_") && !strings.HasPrefix(cfg["publishableKey"], "pk_live_") {
+		return nil, fmt.Errorf("stripe config key mode mismatch: secretKey is live mode but publishableKey is not")
+	}
+	if strings.HasPrefix(cfg["publishableKey"], "pk_test_") && strings.HasPrefix(cfg["secretKey"], "sk_live_") {
+		return nil, fmt.Errorf("stripe config key mode mismatch: publishableKey is test mode but secretKey is live mode")
+	}
+	if strings.HasPrefix(cfg["publishableKey"], "pk_live_") && strings.HasPrefix(cfg["secretKey"], "sk_test_") {
+		return nil, fmt.Errorf("stripe config key mode mismatch: publishableKey is live mode but secretKey is test mode")
+	}
 	currency, err := payment.NormalizePaymentCurrency(cfg["currency"])
 	if err != nil {
 		return nil, fmt.Errorf("stripe config currency: %w", err)

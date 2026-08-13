@@ -1,5 +1,12 @@
 <template>
-  <BaseDialog :show="show" :title="dialogTitle" width="narrow" @close="handleClose">
+  <BaseDialog
+    :show="show"
+    :title="dialogTitle"
+    width="narrow"
+    :close-on-click-outside="false"
+    :close-on-escape="false"
+    @close="handleClose"
+  >
     <!-- QR Code + Polling State -->
     <div v-if="!success" class="flex flex-col items-center space-y-4">
       <!-- QR Code mode -->
@@ -200,7 +207,7 @@ async function pollStatus() {
   let order = await paymentStore.pollOrderStatus(props.orderId)
   if (!order) return
   order = await tryRecoverPendingOrder(order)
-  if (order.status === 'COMPLETED' || order.status === 'PAID') {
+  if (order.status === 'COMPLETED') {
     cleanup()
     paidOrder.value = order
     success.value = true

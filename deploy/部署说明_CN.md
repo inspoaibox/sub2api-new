@@ -58,6 +58,8 @@ SUB2API_IMAGE=ghcr.io/inspoaibox/sub2api-new:v0.1.175
 
 `.env` 包含数据库密码和加密密钥，不要提交到 Git。修改 `POSTGRES_PASSWORD` 不会修改已经初始化的 PostgreSQL 用户密码。
 
+`TOTP_ENCRYPTION_KEY` 不能留空，也不能在更新时重新生成。支付服务商的 Secret Key、Webhook Secret、支付宝/微信私钥等凭证会使用它进行 AES-256-GCM 加密；缺少固定密钥时，管理后台会拒绝保存支付配置。已经由旧版本写入数据库的明文支付配置仍可读取，使用本版本重新保存后会自动转为密文。
+
 ## GitHub 构建流程
 
 镜像发布由两个工作流协作完成：
