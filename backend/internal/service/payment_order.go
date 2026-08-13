@@ -29,6 +29,15 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if normalized := NormalizeVisibleMethod(req.PaymentType); normalized != "" {
 		req.PaymentType = normalized
 	}
+	if req.PaymentType == payment.TypeStripe {
+		rawStripePaymentMethod := strings.TrimSpace(req.StripePaymentMethod)
+		req.StripePaymentMethod = payment.NormalizeStripePaymentMethod(rawStripePaymentMethod)
+		if rawStripePaymentMethod != "" && req.StripePaymentMethod == "" {
+			return nil, infraerrors.BadRequest("INVALID_PAYMENT_METHOD", "unsupported Stripe payment method")
+		}
+	} else {
+		req.StripePaymentMethod = ""
+	}
 	cfg, err := s.configService.GetPaymentConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get payment config: %w", err)
@@ -351,10 +360,16 @@ func (s *PaymentService) selectCreateOrderInstance(ctx context.Context, req Crea
 	if err != nil {
 		return nil, err
 	}
-	sel, err := s.loadBalancer.SelectInstance(selectCtx, "", req.PaymentType, payment.Strategy(cfg.LoadBalanceStrategy), payAmount)
+	providerKey := ""
+	selectionType := req.PaymentType
+	if req.PaymentType == payment.TypeStripe && req.StripePaymentMethod != "" {
+		providerKey = payment.TypeStripe
+		selectionType = req.StripePaymentMethod
+	}
+	sel, err := s.loadBalancer.SelectInstance(selectCtx, providerKey, selectionType, payment.Strategy(cfg.LoadBalanceStrategy), payAmount)
 	if err != nil {
 		return nil, infraerrors.ServiceUnavailable("PAYMENT_GATEWAY_ERROR", "method_not_configured").
-			WithMetadata(map[string]string{"payment_type": req.PaymentType})
+			WithMetadata(map[string]string{"payment_type": req.PaymentType, "stripe_payment_method": req.StripePaymentMethod})
 	}
 	if sel == nil {
 		return nil, infraerrors.TooManyRequests("NO_AVAILABLE_INSTANCE", "no_available_instance")
@@ -511,20 +526,27 @@ func removePostgresTextNUL(value string) string {
 }
 
 func buildProviderCreatePaymentRequest(req CreateOrderRequest, sel *payment.InstanceSelection, orderID, amount, subject string) payment.CreatePaymentRequest {
+	providerPaymentType := req.PaymentType
+	if req.PaymentType == payment.TypeStripe && req.StripePaymentMethod != "" {
+		providerPaymentType = req.StripePaymentMethod
+	}
 	return payment.CreatePaymentRequest{
 		OrderID:            orderID,
 		Amount:             amount,
-		PaymentType:        req.PaymentType,
+		PaymentType:        providerPaymentType,
 		Subject:            subject,
 		ReturnURL:          req.ReturnURL,
 		OpenID:             strings.TrimSpace(req.OpenID),
 		ClientIP:           req.ClientIP,
 		IsMobile:           req.IsMobile,
-		InstanceSubMethods: selectedInstanceSupportedTypes(sel),
+		InstanceSubMethods: selectedInstanceSupportedTypes(sel, req.StripePaymentMethod),
 	}
 }
 
-func selectedInstanceSupportedTypes(sel *payment.InstanceSelection) string {
+func selectedInstanceSupportedTypes(sel *payment.InstanceSelection, stripePaymentMethod string) string {
+	if normalized := payment.NormalizeStripePaymentMethod(stripePaymentMethod); normalized != "" {
+		return normalized
+	}
 	if sel == nil {
 		return ""
 	}

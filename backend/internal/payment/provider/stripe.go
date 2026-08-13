@@ -326,18 +326,9 @@ func stripeIntentCurrency(raw stripe.Currency, fallback string) string {
 // resolveStripeMethodTypes converts instance supported_types (comma-separated)
 // into Stripe API payment_method_types. Falls back to ["card"] if empty.
 func resolveStripeMethodTypes(instanceSubMethods string) []string {
-	if instanceSubMethods == "" {
-		return []string{"card"}
-	}
-	var methods []string
-	for _, t := range strings.Split(instanceSubMethods, ",") {
-		t = strings.TrimSpace(t)
-		if mapped, ok := stripePaymentMethodTypes[t]; ok {
-			methods = append(methods, mapped...)
-		}
-	}
-	if len(methods) == 0 {
-		return []string{"card"}
+	methods := make([]string, 0, 4)
+	for _, sub := range payment.StripeInstancePaymentMethods(instanceSubMethods) {
+		methods = append(methods, stripePaymentMethodTypes[sub]...)
 	}
 	return methods
 }

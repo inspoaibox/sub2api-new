@@ -49,6 +49,25 @@ describe('getVisibleMethods', () => {
     })
   })
 
+  it('expands configured Stripe methods into direct checkout choices', () => {
+    const stripeLimit = methodLimit({
+      fee_rate: 3,
+      sub_methods: ['card', 'alipay', 'wxpay', 'link'],
+    })
+
+    const visible = getVisibleMethods({ stripe: stripeLimit })
+
+    expect(Object.keys(visible)).toEqual([
+      'stripe_card',
+      'stripe_alipay',
+      'stripe_wxpay',
+      'stripe_link',
+    ])
+    expect(visible.stripe_card.fee_rate).toBe(3)
+    expect(visible.stripe_card.sub_methods).toBeUndefined()
+    expect(visible.stripe).toBeUndefined()
+  })
+
   it('prefers canonical visible methods over aliases when both exist', () => {
     const visible = getVisibleMethods({
       alipay: methodLimit({ single_min: 2 }),
@@ -104,6 +123,33 @@ describe('decidePaymentLaunch', () => {
 
     expect(decision.kind).toBe('stripe_route')
     expect(decision.stripeMethod).toBeUndefined()
+  })
+
+  it('routes a direct Stripe WeChat choice to the hosted QR flow', () => {
+    const decision = decidePaymentLaunch(createOrderResult({
+      client_secret: 'cs_test',
+    }), {
+      visibleMethod: 'stripe_wxpay',
+      orderType: 'balance',
+      isMobile: false,
+    })
+
+    expect(decision.kind).toBe('stripe_route')
+    expect(decision.stripeMethod).toBe('wechat_pay')
+    expect(decision.paymentState.paymentType).toBe('stripe_wxpay')
+  })
+
+  it('opens direct Stripe Alipay in the desktop payment window', () => {
+    const decision = decidePaymentLaunch(createOrderResult({
+      client_secret: 'cs_test',
+    }), {
+      visibleMethod: 'stripe_alipay',
+      orderType: 'balance',
+      isMobile: false,
+    })
+
+    expect(decision.kind).toBe('stripe_popup')
+    expect(decision.stripeMethod).toBe('alipay')
   })
 
   it('uses Stripe route flow for mobile WeChat client secret', () => {
@@ -295,6 +341,25 @@ describe('decidePaymentLaunch', () => {
 })
 
 describe('buildCreateOrderPayload', () => {
+
+  it('creates a Stripe order narrowed to the directly selected card method', () => {
+    expect(buildCreateOrderPayload({
+      amount: 88,
+      paymentType: 'stripe_card',
+      orderType: 'balance',
+      origin: 'https://app.example.com',
+      isMobile: false,
+      isWechatBrowser: false,
+    })).toEqual({
+      amount: 88,
+      payment_type: 'stripe',
+      stripe_payment_method: 'card',
+      order_type: 'balance',
+      return_url: 'https://app.example.com/payment/result',
+      is_mobile: false,
+      payment_source: 'hosted_redirect',
+    })
+  })
   it('normalizes visible method aliases and attaches a canonical result URL', () => {
     expect(buildCreateOrderPayload({
       amount: 88,

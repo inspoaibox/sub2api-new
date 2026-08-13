@@ -200,6 +200,39 @@ func TestPcGroupByPaymentType(t *testing.T) {
 	})
 }
 
+func TestPcStripeSubMethods(t *testing.T) {
+	t.Parallel()
+
+	methods := pcStripeSubMethods([]*dbent.PaymentProviderInstance{
+		makeInstance(1, payment.TypeStripe, "card,alipay", ""),
+		makeInstance(2, payment.TypeStripe, "wxpay,link,card", ""),
+		makeInstance(3, payment.TypeEasyPay, "alipay", ""),
+	})
+
+	require.Equal(t, []string{"card", "alipay", "wxpay", "link"}, methods)
+	require.Equal(t, []string{"card"}, pcStripeSubMethods([]*dbent.PaymentProviderInstance{
+		makeInstance(4, payment.TypeStripe, "", ""),
+	}))
+}
+
+func TestGetAvailableMethodLimitsIncludesStripeSubMethods(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+
+	_, err := client.PaymentProviderInstance.Create().
+		SetProviderKey(payment.TypeStripe).
+		SetName("Stripe Direct Methods").
+		SetConfig(`{"currency":"CNY"}`).
+		SetSupportedTypes("card,alipay,wxpay,link").
+		SetEnabled(true).
+		Save(ctx)
+	require.NoError(t, err)
+
+	resp, err := (&PaymentConfigService{entClient: client}).GetAvailableMethodLimits(ctx)
+	require.NoError(t, err)
+	require.Equal(t, []string{"card", "alipay", "wxpay", "link"}, resp.Methods[payment.TypeStripe].SubMethods)
+}
+
 func TestPcAggregateMethodCurrency(t *testing.T) {
 	t.Parallel()
 

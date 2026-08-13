@@ -19,7 +19,15 @@ const VISIBLE_METHOD_ALIASES = {
 } as const
 
 export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex'
-export type StripeVisibleMethod = 'alipay' | 'wechat_pay'
+export type StripeConfiguredMethod = 'card' | 'alipay' | 'wxpay' | 'link'
+export type StripeVisibleMethod = 'card' | 'alipay' | 'wechat_pay' | 'link'
+
+const STRIPE_DIRECT_METHODS: Record<string, StripeConfiguredMethod> = {
+  stripe_card: 'card',
+  stripe_alipay: 'alipay',
+  stripe_wxpay: 'wxpay',
+  stripe_link: 'link',
+}
 export type PaymentLaunchKind =
   | 'qr_waiting'
   | 'alipay_deep_link'
@@ -103,12 +111,42 @@ export function normalizeVisibleMethod(method: string): VisiblePaymentMethod | '
   return normalized ?? ''
 }
 
+export function getStripeConfiguredMethod(method: string): StripeConfiguredMethod | '' {
+  return STRIPE_DIRECT_METHODS[method.trim()] || ''
+}
+
+export function getStripeRouteMethod(method: string): StripeVisibleMethod | '' {
+  const configured = getStripeConfiguredMethod(method)
+  return configured === 'wxpay' ? 'wechat_pay' : configured
+}
+
+function normalizeStripeConfiguredMethod(method: string): StripeConfiguredMethod | '' {
+  const normalized = method.trim().toLowerCase()
+  if (normalized === 'wechat_pay') return 'wxpay'
+  if (normalized === 'card' || normalized === 'alipay' || normalized === 'wxpay' || normalized === 'link') {
+    return normalized
+  }
+  return ''
+}
+
 export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<string, MethodLimit> {
   const visible: Record<string, MethodLimit> = {}
 
   Object.entries(methods).forEach(([type, limit]) => {
     const normalized = normalizeVisibleMethod(type) || type.trim()
     if (!normalized) return
+
+    if (normalized === 'stripe' && limit.sub_methods?.length) {
+      const stripeMethods = Array.from(new Set(
+        limit.sub_methods.map(normalizeStripeConfiguredMethod).filter(Boolean),
+      )) as StripeConfiguredMethod[]
+      if (stripeMethods.length) {
+        stripeMethods.forEach((method) => {
+          visible[`stripe_${method}`] = { ...limit, sub_methods: undefined }
+        })
+        return
+      }
+    }
 
     const isCanonical = type === normalized
     const existing = visible[normalized]
@@ -122,6 +160,8 @@ export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<
 
 export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): CreateOrderRequest {
   const visibleMethod = normalizeVisibleMethod(input.paymentType) || input.paymentType.trim()
+  const stripePaymentMethod = getStripeConfiguredMethod(visibleMethod)
+  const orderPaymentType = stripePaymentMethod ? 'stripe' : visibleMethod
   const normalizedOrigin = (input.origin || '').trim().replace(/\/+$/, '')
   // When forceQRCode is enabled for alipay, always tell the backend this is not a mobile
   // request so it generates a QR code instead of a mobile-redirect URL.
@@ -130,12 +170,16 @@ export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): Cr
     : input.isMobile
   const payload: CreateOrderRequest = {
     amount: input.amount,
-    payment_type: visibleMethod,
+    payment_type: orderPaymentType,
     order_type: input.orderType,
     is_mobile: effectiveMobile,
     payment_source: visibleMethod === 'wxpay' && input.isWechatBrowser
       ? 'wechat_in_app_resume'
       : 'hosted_redirect',
+  }
+
+  if (stripePaymentMethod) {
+    payload.stripe_payment_method = stripePaymentMethod
   }
 
   if (input.planId) {
@@ -183,12 +227,9 @@ export function decidePaymentLaunch(
   }
 
   if (baseState.clientSecret) {
-    // visibleMethod === 'stripe' means the user clicked the dedicated Stripe button
-    // and should land on the full Payment Element to choose a sub-method themselves.
-    const isStripeButton = visibleMethod === 'stripe'
-    const stripeMethod: StripeVisibleMethod | undefined = isStripeButton
-      ? undefined
-      : visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'
+    const directStripeMethod = getStripeRouteMethod(visibleMethod)
+    const stripeMethod: StripeVisibleMethod | undefined = directStripeMethod
+      || (visibleMethod === 'wxpay' ? 'wechat_pay' : visibleMethod === 'alipay' ? 'alipay' : undefined)
     const kind: PaymentLaunchKind = stripeMethod === 'alipay' && !context.isMobile
       ? 'stripe_popup'
       : 'stripe_route'

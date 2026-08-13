@@ -2,7 +2,10 @@
 // registry, load balancing, and shared utilities for the payment subsystem.
 package payment
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // PaymentType represents a supported payment method.
 type PaymentType = string
@@ -95,6 +98,58 @@ func GetBasePaymentType(t string) string {
 	default:
 		return t
 	}
+}
+
+// NormalizeStripePaymentMethod converts a Stripe-facing method name into the
+// value stored in provider instance supported_types.
+func NormalizeStripePaymentMethod(method string) PaymentType {
+	switch strings.ToLower(strings.TrimSpace(method)) {
+	case TypeCard:
+		return TypeCard
+	case TypeAlipay:
+		return TypeAlipay
+	case TypeWxpay, "wechat_pay":
+		return TypeWxpay
+	case TypeLink:
+		return TypeLink
+	default:
+		return ""
+	}
+}
+
+// StripeInstancePaymentMethods returns the effective Stripe sub-methods for an
+// instance. Legacy empty or "stripe" values keep the card-only fallback.
+func StripeInstancePaymentMethods(supportedTypes string) []PaymentType {
+	seen := make(map[PaymentType]struct{}, 4)
+	methods := make([]PaymentType, 0, 4)
+	for _, raw := range strings.Split(supportedTypes, ",") {
+		method := NormalizeStripePaymentMethod(raw)
+		if method == "" {
+			continue
+		}
+		if _, ok := seen[method]; ok {
+			continue
+		}
+		seen[method] = struct{}{}
+		methods = append(methods, method)
+	}
+	if len(methods) == 0 {
+		return []PaymentType{TypeCard}
+	}
+	return methods
+}
+
+func StripeInstanceSupportsPaymentMethod(supportedTypes string, target PaymentType) bool {
+	target = NormalizeStripePaymentMethod(target)
+	if target == "" {
+		return false
+	}
+	for _, method := range StripeInstancePaymentMethods(supportedTypes) {
+		if method == target {
+			return true
+		}
+	}
+	return false
 }
 
 // CreatePaymentRequest holds the parameters for creating a new payment.

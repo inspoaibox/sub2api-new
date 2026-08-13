@@ -8,6 +8,7 @@ import (
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInstanceSupportsType(t *testing.T) {
@@ -96,6 +97,19 @@ func TestInstanceSupportsType(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStripeInstancePaymentMethods(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, []PaymentType{TypeCard}, StripeInstancePaymentMethods(""))
+	require.Equal(t, []PaymentType{TypeCard}, StripeInstancePaymentMethods("stripe"))
+	require.Equal(t,
+		[]PaymentType{TypeCard, TypeAlipay, TypeWxpay, TypeLink},
+		StripeInstancePaymentMethods("card,alipay,wechat_pay,link,card"),
+	)
+	require.True(t, StripeInstanceSupportsPaymentMethod("card,wxpay", "wechat_pay"))
+	require.False(t, StripeInstanceSupportsPaymentMethod("card,link", TypeAlipay))
 }
 
 func TestGetInstanceChannelLimitsFallsBackToLegacyDirectAliases(t *testing.T) {

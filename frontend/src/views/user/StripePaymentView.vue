@@ -123,7 +123,7 @@ const route = useRoute()
 const router = useRouter()
 const paymentStore = usePaymentStore()
 
-// 弹窗模式：指定支付宝或微信方式时跳过 AppLayout
+// Direct Stripe methods use the compact checkout shell without AppLayout.
 const isPopup = computed(() => !!route.query.method)
 
 const loading = ref(true)
@@ -200,10 +200,11 @@ onMounted(async () => {
     } else if (method === 'wechat_pay') {
       await confirmWechatPay(stripe, clientSecret)
     } else {
-      // 未指定方式时渲染完整 Payment Element
+      // Card and Link render through Payment Element. The backend has already
+      // limited the PaymentIntent to the selected method.
       showPaymentElement.value = true
       await nextTick()
-      mountPaymentElement(stripe, clientSecret)
+      mountPaymentElement(stripe, clientSecret, method)
     }
   } catch (err: unknown) {
     initError.value = extractI18nErrorMessage(err, t, 'payment.errors', t('payment.stripeLoadFailed'))
@@ -278,7 +279,13 @@ async function confirmWechatPay(stripe: Stripe, clientSecret: string) {
   }
 }
 
-function mountPaymentElement(stripe: Stripe, clientSecret: string) {
+function stripePaymentMethodOrder(preferredMethod: string): string[] {
+  const order = ['card', 'link', 'alipay', 'wechat_pay']
+  if (!order.includes(preferredMethod)) return order
+  return [preferredMethod, ...order.filter(method => method !== preferredMethod)]
+}
+
+function mountPaymentElement(stripe: Stripe, clientSecret: string, preferredMethod = '') {
   const isDark = document.documentElement.classList.contains('dark')
   const elements = stripe.elements({
     clientSecret,
@@ -287,7 +294,7 @@ function mountPaymentElement(stripe: Stripe, clientSecret: string) {
   elementsInstance = elements
   const paymentElement = elements.create('payment', {
     layout: 'tabs',
-    paymentMethodOrder: ['alipay', 'wechat_pay', 'card', 'link'],
+    paymentMethodOrder: stripePaymentMethodOrder(preferredMethod),
   } as Record<string, unknown>)
   paymentElement.mount('#stripe-payment-element')
   paymentElement.on('ready', () => { stripeReady.value = true })

@@ -277,6 +277,7 @@ import {
   buildCreateOrderPayload,
   clearPaymentRecoverySnapshot,
   decidePaymentLaunch,
+  getStripeRouteMethod,
   getVisibleMethods,
   normalizeVisibleMethod,
   readPaymentRecoverySnapshot,
@@ -708,7 +709,7 @@ const paymentButtonClass = computed(() => {
   if (!m) return 'btn-primary'
   if (isBuiltInAlipayMethod(m)) return 'btn-alipay'
   if (isBuiltInWxpayMethod(m)) return 'btn-wxpay'
-  if (m === 'stripe') return 'btn-stripe'
+  if (m === 'stripe' || m.startsWith('stripe_')) return 'btn-stripe'
   if (m === 'airwallex') return 'btn-airwallex'
   return 'btn-primary'
 })
@@ -797,11 +798,8 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       }
     }
     const visibleMethod = normalizeVisibleMethod(requestType) || requestType
-    // When user clicks the dedicated Stripe button, leave method blank so the
-    // landing page renders Stripe's full Payment Element (card/link/alipay/wxpay).
-    const stripeMethod = visibleMethod === 'stripe'
-      ? ''
-      : visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'
+    const stripeMethod = getStripeRouteMethod(visibleMethod)
+      || (visibleMethod === 'wxpay' ? 'wechat_pay' : visibleMethod === 'alipay' ? 'alipay' : '')
     const stripeRouteUrl = result.client_secret && visibleMethod !== 'airwallex'
       ? router.resolve({
         path: '/payment/stripe',
@@ -1008,7 +1006,8 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       isWechatBrowser: false,
     })
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
-    const stripeMethod = visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'
+    const stripeMethod = getStripeRouteMethod(visibleMethod)
+      || (visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay')
     const stripeRouteUrl = result.client_secret
       ? router.resolve({
         path: '/payment/stripe',

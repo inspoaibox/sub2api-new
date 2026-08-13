@@ -9,6 +9,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/stretchr/testify/require"
 )
 
 func TestShouldUseAlipayMobilePrecreate(t *testing.T) {
@@ -128,6 +129,24 @@ func TestBuildCreateOrderResponseUsesSelectedStripePublishableKey(t *testing.T) 
 	if resp.PublishableKey != "pk_test_selected" {
 		t.Fatalf("publishable_key = %q, want selected instance key", resp.PublishableKey)
 	}
+}
+
+func TestBuildProviderCreatePaymentRequestNarrowsStripeMethod(t *testing.T) {
+	t.Parallel()
+
+	req := buildProviderCreatePaymentRequest(
+		CreateOrderRequest{
+			PaymentType:         payment.TypeStripe,
+			StripePaymentMethod: payment.TypeWxpay,
+		},
+		&payment.InstanceSelection{SupportedTypes: "card,alipay,wxpay,link"},
+		"43",
+		"20.00",
+		"Recharge",
+	)
+
+	require.Equal(t, payment.TypeWxpay, req.PaymentType)
+	require.Equal(t, payment.TypeWxpay, req.InstanceSubMethods)
 }
 
 func TestBuildCreateOrderResponseCopiesJSAPIPayload(t *testing.T) {

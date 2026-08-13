@@ -128,6 +128,9 @@ type MethodLimits struct {
 	DailyLimit  float64 `json:"daily_limit"`
 	SingleMin   float64 `json:"single_min"`
 	SingleMax   float64 `json:"single_max"`
+	// SubMethods lists configured Stripe methods while preserving the legacy
+	// top-level "stripe" response key for older clients.
+	SubMethods []string `json:"sub_methods,omitempty"`
 }
 
 // MethodLimitsResponse is the full response for the user-facing /limits API.

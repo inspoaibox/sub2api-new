@@ -14,7 +14,8 @@ import (
 
 // GetAvailableMethodLimits collects all payment types from enabled provider
 // instances and returns limits for each, plus the global widest range.
-// Stripe sub-types (card, link) are aggregated under "stripe".
+// Stripe sub-types are aggregated under "stripe" and returned as metadata so
+// clients can expose them as direct payment choices without breaking older clients.
 func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*MethodLimitsResponse, error) {
 	instances, err := s.entClient.PaymentProviderInstance.Query().
 		Where(paymentproviderinstance.EnabledEQ(true)).All(ctx)
@@ -34,6 +35,9 @@ func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*M
 		ml := pcAggregateMethodLimits(pt, insts)
 		ml.DisplayName = s.pcAggregateMethodDisplayName(pt, insts)
 		ml.Currency = currency
+		if pt == payment.TypeStripe {
+			ml.SubMethods = pcStripeSubMethods(insts)
+		}
 		resp.Methods[ml.PaymentType] = ml
 	}
 	resp.GlobalMin, resp.GlobalMax = pcComputeGlobalRange(resp.Methods)
@@ -213,9 +217,9 @@ func (s *PaymentConfigService) pcInstanceEasyPayCustomMethodDisplayName(inst *db
 	return ""
 }
 
-// pcGroupByPaymentType groups instances by user-facing payment type.
-// For Stripe providers, ALL sub-types (card, link, alipay, wxpay) map to "stripe"
-// because the user sees a single "Stripe" button, not individual sub-methods.
+// pcGroupByPaymentType groups instances by the legacy user-facing payment type.
+// Stripe sub-methods remain grouped under "stripe" here; pcStripeSubMethods
+// exposes their configured choices as response metadata for newer clients.
 // Uses a seen set to avoid counting one instance twice.
 func pcGroupByPaymentType(instances []*dbent.PaymentProviderInstance) map[string][]*dbent.PaymentProviderInstance {
 	typeInstances := make(map[string][]*dbent.PaymentProviderInstance)
@@ -240,6 +244,27 @@ func pcGroupByPaymentType(instances []*dbent.PaymentProviderInstance) map[string
 		}
 	}
 	return typeInstances
+}
+
+func pcStripeSubMethods(instances []*dbent.PaymentProviderInstance) []string {
+	seen := make(map[string]struct{}, 4)
+	methods := make([]string, 0, 4)
+	for _, inst := range instances {
+		if inst == nil || inst.ProviderKey != payment.TypeStripe {
+			continue
+		}
+		for _, method := range payment.StripeInstancePaymentMethods(inst.SupportedTypes) {
+			if _, ok := seen[method]; ok {
+				continue
+			}
+			seen[method] = struct{}{}
+			methods = append(methods, method)
+		}
+	}
+	if len(methods) == 0 {
+		return []string{payment.TypeCard}
+	}
+	return methods
 }
 
 // pcInstanceTypeLimits extracts per-type limits from a provider instance.

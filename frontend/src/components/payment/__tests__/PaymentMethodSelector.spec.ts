@@ -60,4 +60,24 @@ describe('PaymentMethodSelector', () => {
     expect(button.classes()).toContain('border-primary-500')
     expect(button.classes()).not.toContain('border-[#02A9F1]')
   })
+
+  it('shows Stripe sub-methods as direct customer-facing choices', () => {
+    const wrapper = mount(PaymentMethodSelector, {
+      props: {
+        selected: 'stripe_card',
+        methods: [
+          { type: 'stripe_card', fee_rate: 0, available: true },
+          { type: 'stripe_alipay', fee_rate: 0, available: true },
+          { type: 'stripe_wxpay', fee_rate: 0, available: true },
+        ],
+      },
+    })
+
+    expect(wrapper.findAll('button').map(button => button.attributes('title'))).toEqual([
+      'stripe_card',
+      'stripe_alipay',
+      'stripe_wxpay',
+    ])
+    expect(wrapper.get('button').classes()).toContain('border-[#676BE5]')
+  })
 })

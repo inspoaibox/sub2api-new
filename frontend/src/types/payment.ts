@@ -44,6 +44,7 @@ export interface PaymentConfig {
 export interface MethodLimit {
   currency?: string
   display_name?: string
+  sub_methods?: string[]
   daily_limit: number
   daily_used: number
   daily_remaining: number
@@ -169,6 +170,7 @@ export interface ProviderInstance {
 export interface CreateOrderRequest {
   amount: number
   payment_type: string
+  stripe_payment_method?: string
   order_type: string
   plan_id?: number
   return_url?: string
