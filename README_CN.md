@@ -306,7 +306,7 @@ curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install
 mkdir -p sub2api-deploy && cd sub2api-deploy
 
 # 下载并运行部署准备脚本
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/docker-deploy.sh | bash
+curl -sSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-deploy.sh | bash
 
 # 启动服务
 docker compose up -d
@@ -328,7 +328,7 @@ docker compose logs -f sub2api
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/Wei-Shaw/sub2api.git
+git clone https://github.com/inspoaibox/sub2api-new.git
 cd sub2api/deploy
 
 # 2. 复制环境配置文件
@@ -419,13 +419,28 @@ docker compose -f docker-compose.local.yml logs -f sub2api
 docker compose -f docker-compose.local.yml logs sub2api | grep "admin password"
 ```
 
-#### 升级
+#### 镜像和升级
+
+当前二次开发版镜像由 GitHub Actions 构建：
+
+```text
+ghcr.io/inspoaibox/sub2api-new:latest
+```
+
+生产环境可以在 `.env` 中固定版本：
 
 ```bash
-# 拉取最新镜像并重建容器
-docker compose -f docker-compose.local.yml pull
-docker compose -f docker-compose.local.yml up -d
+SUB2API_IMAGE=ghcr.io/inspoaibox/sub2api-new:v0.1.175
 ```
+
+更新前请备份数据库和 `.env`。更新只替换应用镜像，不删除 `data/`、`postgres_data/`、`redis_data/`：
+
+```bash
+docker compose -f docker-compose.local.yml pull
+docker compose -f docker-compose.local.yml up -d sub2api
+```
+
+完整的 GHCR 权限、构建、升级、回滚和数据保护说明见 [`deploy/部署说明_CN.md`](deploy/部署说明_CN.md)。
 
 #### 轻松迁移（本地目录版）
 
@@ -470,7 +485,7 @@ rm -rf data/ postgres_data/ redis_data/
 Apple 芯片 Mac 在 macOS 26 上可使用 Apple `container` 1.1.0 或更高版本运行完整的 Sub2API、PostgreSQL 和 Redis：
 
 ```bash
-git clone https://github.com/Wei-Shaw/sub2api.git
+git clone https://github.com/inspoaibox/sub2api-new.git
 cd sub2api/deploy
 ./apple-container.sh init
 ./apple-container.sh up
@@ -496,7 +511,7 @@ cd sub2api/deploy
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/Wei-Shaw/sub2api.git
+git clone https://github.com/inspoaibox/sub2api-new.git
 cd sub2api
 
 # 2. 安装 pnpm（如果还没有安装）

@@ -1,62 +1,37 @@
-# Sub2API Docker Image
+# Sub2API 二次开发版 Docker 镜像
 
-Sub2API is an AI API Gateway Platform for distributing and managing AI product subscription API quotas.
+当前二次开发仓库：<https://github.com/inspoaibox/sub2api-new>
+
+默认镜像：`ghcr.io/inspoaibox/sub2api-new:latest`
+
+镜像由 GitHub Actions 构建，包含当前仓库的前端和后端代码，支持 `linux/amd64` 与 `linux/arm64`。完整部署、更新、回滚和备份说明见 [`部署说明_CN.md`](./部署说明_CN.md)。
 
 ## Quick Start
 
 ```bash
-docker run -d \
-  --name sub2api \
-  -p 8080:8080 \
-  -e DATABASE_URL="postgres://user:pass@host:5432/sub2api" \
-  -e REDIS_URL="redis://host:6379" \
-  weishaw/sub2api:latest
+mkdir -p /opt/sub2api && cd /opt/sub2api
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-deploy.sh | bash
+docker compose up -d
+docker compose ps
 ```
 
 ## Docker Compose
 
-```yaml
-version: '3.8'
+生产环境请直接使用仓库中的 `docker-compose.local.yml`，它包含 PostgreSQL、Redis、健康检查、持久化目录和自动初始化配置。不要使用没有数据卷的简单 `docker run` 方式。
 
-services:
-  sub2api:
-    image: weishaw/sub2api:latest
-    ports:
-      - "8080:8080"
-    environment:
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/sub2api?sslmode=disable
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - db
-      - redis
+## 镜像标签
 
-  db:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=sub2api
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+| 标签 | 说明 |
+|------|------|
+| `latest` | `main` 分支最近一次成功构建 |
+| `sha-提交短哈希` | 固定到指定源码提交 |
+| `v0.1.175` | 对应版本标签构建 |
 
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
+GHCR 包如果是私有的，请先登录：
 
-volumes:
-  postgres_data:
-  redis_data:
+```bash
+echo "$GHCR_TOKEN" | docker login ghcr.io -u inspoaibox --password-stdin
 ```
-
-## Environment Variables
-
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | Yes | - |
-| `REDIS_URL` | Redis connection string | Yes | - |
-| `PORT` | Server port | No | `8080` |
-| `GIN_MODE` | Gin framework mode (`debug`/`release`) | No | `release` |
 
 ## Supported Architectures
 
@@ -72,5 +47,5 @@ volumes:
 
 ## Links
 
-- [GitHub Repository](https://github.com/weishaw/sub2api)
-- [Documentation](https://github.com/weishaw/sub2api#readme)
+- [GitHub Repository](https://github.com/inspoaibox/sub2api-new)
+- [中文部署说明](./部署说明_CN.md)
