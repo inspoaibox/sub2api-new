@@ -17,6 +17,7 @@ This directory contains files for deploying Sub2API on Linux servers and Apple-s
 | `docker-compose.yml` | Docker Compose configuration (named volumes) |
 | `docker-compose.local.yml` | Docker Compose configuration (local directories, easy migration) |
 | `docker-deploy.sh` | **One-click Docker deployment script (recommended)** |
+| `docker-update.sh` | Update an existing Docker deployment with backup and health check |
 | `apple-container.sh` | Native Apple `container` lifecycle script |
 | `APPLE_CONTAINER.md` | Apple `container` deployment and operations guide |
 | `.env.example` | Container environment variables template |
@@ -60,7 +61,7 @@ Use the automated preparation script for the easiest setup:
 curl -sSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-deploy.sh | bash
 
 # Or download first, then run
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/docker-deploy.sh -o docker-deploy.sh
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-deploy.sh -o docker-deploy.sh
 chmod +x docker-deploy.sh
 ./docker-deploy.sh
 ```
@@ -74,18 +75,34 @@ chmod +x docker-deploy.sh
 
 **After running the script:**
 ```bash
-# Start services
-docker compose -f docker-compose.local.yml up -d
+# Start services. The preparation script saves the local-directory file as
+# docker-compose.yml in the deployment directory.
+docker compose up -d
 
 # View logs
-docker compose -f docker-compose.local.yml logs -f sub2api
+docker compose logs -f sub2api
 
 # If admin password was auto-generated, find it in logs:
-docker compose -f docker-compose.local.yml logs sub2api | grep "admin password"
+docker compose logs sub2api | grep "admin password"
 
 # Access Web UI
 # http://localhost:8080
 ```
+
+### Updating an Existing Deployment
+
+Do not run `docker-deploy.sh` again in an existing deployment directory. It is
+the first-install script and generates new database and encryption secrets.
+Use the update script instead:
+
+```bash
+cd /root/sub2api-deploy
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh | bash
+```
+
+The script backs up `.env`, the Compose file, and PostgreSQL, then pulls the
+current GHCR image and recreates only the `sub2api` container. It preserves
+`data/`, `postgres_data/`, `redis_data/`, the configured port, and all secrets.
 
 ### Method 2: Manual Deployment
 
@@ -93,8 +110,8 @@ If you prefer manual control:
 
 ```bash
 # Clone repository
-git clone https://github.com/Wei-Shaw/sub2api.git
-cd sub2api/deploy
+git clone https://github.com/inspoaibox/sub2api-new.git
+cd sub2api-new/deploy
 
 # Configure environment
 cp .env.example .env
@@ -181,27 +198,26 @@ SELECT
 
 ### Commands
 
-For **local directory version** (docker-compose.local.yml):
+For the script-generated local-directory deployment (`docker-compose.yml`):
 
 ```bash
 # Start services
-docker compose -f docker-compose.local.yml up -d
+docker compose up -d
 
 # Stop services
-docker compose -f docker-compose.local.yml down
+docker compose down
 
 # View logs
-docker compose -f docker-compose.local.yml logs -f sub2api
+docker compose logs -f sub2api
 
 # Restart Sub2API only
-docker compose -f docker-compose.local.yml restart sub2api
+docker compose restart sub2api
 
-# Update to latest version
-docker compose -f docker-compose.local.yml pull
-docker compose -f docker-compose.local.yml up -d
+# Update an existing deployment with backup and health check
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh | bash
 
 # Remove all data (caution!)
-docker compose -f docker-compose.local.yml down
+docker compose down
 rm -rf data/ postgres_data/ redis_data/
 ```
 
@@ -253,12 +269,12 @@ See `.env.example` for all available options.
 
 ### Easy Migration (Local Directory Version)
 
-When using `docker-compose.local.yml`, all data is stored in local directories, making migration simple:
+When using the script-generated `docker-compose.yml`, all data is stored in local directories, making migration simple:
 
 ```bash
 # On source server: Stop services and create archive
 cd /path/to/deployment
-docker compose -f docker-compose.local.yml down
+docker compose down
 cd ..
 tar czf sub2api-complete.tar.gz deployment/
 
@@ -268,7 +284,7 @@ scp sub2api-complete.tar.gz user@new-server:/path/to/destination/
 # On new server: Extract and start
 tar xzf sub2api-complete.tar.gz
 cd deployment/
-docker compose -f docker-compose.local.yml up -d
+docker compose up -d
 ```
 
 Your entire deployment (configuration + data) is migrated!
@@ -514,23 +530,23 @@ The main config file is at `/etc/sub2api/config.yaml` (created by Setup Wizard).
 
 ### Docker
 
-For **local directory version**:
+For the script-generated local-directory version:
 
 ```bash
 # Check container status
-docker compose -f docker-compose.local.yml ps
+docker compose ps
 
 # View detailed logs
-docker compose -f docker-compose.local.yml logs --tail=100 sub2api
+docker compose logs --tail=100 sub2api
 
 # Check database connection
-docker compose -f docker-compose.local.yml exec postgres pg_isready
+docker compose exec postgres pg_isready
 
 # Check Redis connection
-docker compose -f docker-compose.local.yml exec redis redis-cli ping
+docker compose exec redis redis-cli ping
 
 # Restart all services
-docker compose -f docker-compose.local.yml restart
+docker compose restart
 
 # Check data directories
 ls -la data/ postgres_data/ redis_data/

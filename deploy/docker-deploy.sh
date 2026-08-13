@@ -64,15 +64,14 @@ main() {
         exit 1
     fi
 
-    # Check if deployment already exists
-    if [ -f "docker-compose.yml" ] && [ -f ".env" ]; then
-        print_warning "Deployment files already exist in current directory."
-        read -p "Overwrite existing files? (y/N): " -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            print_info "Cancelled."
-            exit 0
-        fi
+    # This script is for first-time preparation only. Re-running it would
+    # regenerate database and encryption secrets and can make an existing
+    # deployment unusable. Use docker-update.sh for an existing deployment.
+    if [ -f "docker-compose.yml" ] || [ -f "docker-compose.local.yml" ] || [ -f ".env" ]; then
+        print_error "An existing deployment was found in the current directory."
+        print_warning "This first-install script will not overwrite Compose files or regenerate secrets."
+        print_info "Run: curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh | bash"
+        exit 1
     fi
 
     # Download docker-compose.local.yml and save as docker-compose.yml

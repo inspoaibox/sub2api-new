@@ -71,17 +71,44 @@ SUB2API_IMAGE=ghcr.io/inspoaibox/sub2api-new:v0.1.175
 
 普通 CI 通过不代表镜像已经发布，必须确认 Docker 工作流为绿色。
 
+## 首次部署与更新的区别
+
+`docker-deploy.sh` 只用于空的首次部署目录。它会生成新的数据库密码、JWT 密钥和 TOTP 加密密钥，因此不要在已有系统目录中重复执行。
+
+已有部署必须使用下面的更新脚本。更新脚本会保留当前 `.env`、端口、数据库、Redis 和应用数据，只替换应用镜像和 Compose 配置：
+
+```bash
+cd /root/sub2api-deploy
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh | bash
+```
+
+脚本支持指定镜像进行固定版本更新：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh \
+  | bash -s -- --image ghcr.io/inspoaibox/sub2api-new:sha-提交短哈希
+```
+
+更新前会在当前目录的 `backups/时间戳/` 下保存：
+
+- `.env`
+- 当前 Compose 配置
+- PostgreSQL SQL 备份（数据库容器正常运行时）
+
+更新完成后会自动检查健康接口，并输出容器实际使用的镜像和版本。更新过程中不会删除 `data/`、`postgres_data/`、`redis_data/`，也不会增加前端服务或新的对外端口。
+
 ## 更新版本
 
-更新只替换 Sub2API 镜像，不删除数据目录。更新前建议备份：
+更新只替换 Sub2API 镜像，不删除数据目录。推荐使用上面的 `docker-update.sh`。如果需要手动执行：
 
 ```bash
 cd /opt/sub2api
 mkdir -p backups
 docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > "backups/sub2api-$(date +%Y%m%d-%H%M%S).sql"
 cp .env "backups/env-$(date +%Y%m%d-%H%M%S)"
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-compose.local.yml -o docker-compose.yml
 docker compose pull sub2api
-docker compose up -d sub2api
+docker compose up -d --force-recreate sub2api
 docker compose ps
 docker compose logs --tail=100 sub2api
 ```
@@ -97,7 +124,7 @@ cd /opt/sub2api
 cp .env .env.before-rollback
 sed -i 's#^SUB2API_IMAGE=.*#SUB2API_IMAGE=ghcr.io/inspoaibox/sub2api-new:v0.1.175#' .env
 docker compose pull sub2api
-docker compose up -d sub2api
+docker compose up -d --force-recreate sub2api
 docker compose logs --tail=100 sub2api
 ```
 

@@ -329,7 +329,7 @@ docker compose logs -f sub2api
 ```bash
 # 1. 克隆仓库
 git clone https://github.com/inspoaibox/sub2api-new.git
-cd sub2api/deploy
+cd sub2api-new/deploy
 
 # 2. 复制环境配置文件
 cp .env.example .env
@@ -393,10 +393,10 @@ docker compose -f docker-compose.local.yml logs -f sub2api
 
 | 版本 | 数据存储 | 迁移便利性 | 适用场景 |
 |------|---------|-----------|---------|
-| **docker-compose.local.yml** | 本地目录 | ✅ 简单（打包整个目录） | 生产环境、频繁备份 |
-| **docker-compose.yml** | 命名卷 | ⚠️ 需要 docker 命令 | 简单设置 |
+| **脚本生成的 docker-compose.yml** | 本地目录 | ✅ 简单（打包整个目录） | 生产环境、频繁备份 |
+| **docker-compose.yml** | 命名卷 | ⚠️ 需要 docker 命令 | 源码目录中的简单设置 |
 
-**推荐：** 使用 `docker-compose.local.yml`（脚本部署）以便更轻松地管理数据。
+**推荐：** 使用部署脚本生成的 `docker-compose.yml`，数据保存在当前目录，便于备份和迁移。
 
 #### 启用“数据管理”功能（datamanagementd）
 
@@ -416,39 +416,104 @@ docker compose -f docker-compose.local.yml logs -f sub2api
 
 如果管理员密码是自动生成的，在日志中查找：
 ```bash
-docker compose -f docker-compose.local.yml logs sub2api | grep "admin password"
+docker compose logs sub2api | grep "admin password"
 ```
 
-#### 镜像和升级
+#### 镜像、更新与回滚
 
-当前二次开发版镜像由 GitHub Actions 构建：
+当前二次开发版镜像由 GitHub Actions 根据 `inspoaibox/sub2api-new` 仓库源码构建，前端和后端会一起编译到同一个镜像中：
 
 ```text
 ghcr.io/inspoaibox/sub2api-new:latest
 ```
 
-生产环境可以在 `.env` 中固定版本：
+每次更新代码并推送到 `main` 后，请先在 GitHub Actions 确认 `Docker 镜像构建与发布` 工作流成功，再更新服务器。普通 CI 通过不代表 Docker 镜像已经发布完成。
+
+首次部署脚本会把 `docker-compose.local.yml` 下载并保存为当前目录的 `docker-compose.yml`。因此，后续命令直接使用 `docker compose` 即可。脚本只适用于空的部署目录；已有部署不要再次执行首次部署脚本，否则可能保留旧 Compose 配置，或重新生成数据库和加密密钥。
+
+**推荐更新方式：**
 
 ```bash
-SUB2API_IMAGE=ghcr.io/inspoaibox/sub2api-new:v0.1.175
+# 进入已有部署目录，例如：
+cd /root/sub2api-deploy
+
+# 自动备份 .env、Compose 配置和 PostgreSQL，保留所有数据目录
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh | bash
 ```
 
-更新前请备份数据库和 `.env`。更新只替换应用镜像，不删除 `data/`、`postgres_data/`、`redis_data/`：
+更新脚本会执行：
+
+- 备份 `.env`、`docker-compose.yml` 和 PostgreSQL 数据库
+- 下载 GitHub 当前 `main` 分支的最新 Compose 配置
+- 保留原有 `.env` 中的数据库密码、JWT 密钥、TOTP 密钥和端口
+- 拉取 `ghcr.io/inspoaibox/sub2api-new:latest`
+- 只重新创建 `sub2api` 应用容器，不删除 PostgreSQL、Redis 和应用数据
+- 检查 `/health` 并输出实际运行的镜像版本
+
+如果 GHCR 镜像是私有的，先登录：
 
 ```bash
-docker compose -f docker-compose.local.yml pull
-docker compose -f docker-compose.local.yml up -d sub2api
+echo "$GHCR_TOKEN" | docker login ghcr.io -u inspoaibox --password-stdin
 ```
 
-完整的 GHCR 权限、构建、升级、回滚和数据保护说明见 [`deploy/部署说明_CN.md`](deploy/部署说明_CN.md)。
+**手动更新方式：**
+
+```bash
+cd /root/sub2api-deploy
+mkdir -p backups
+cp .env "backups/env-$(date -u +%Y%m%d-%H%M%S)"
+docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  > "backups/sub2api-$(date -u +%Y%m%d-%H%M%S).sql"
+
+# 先同步当前仓库的 Compose 配置，保留现有 .env 和数据目录
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-compose.local.yml \
+  -o docker-compose.yml
+
+docker compose pull sub2api
+docker compose up -d --force-recreate sub2api
+docker compose ps
+docker compose logs --tail=100 sub2api
+```
+
+确认更新结果：
+
+```bash
+docker inspect sub2api --format '{{.Config.Image}}'
+docker exec sub2api /app/sub2api -version
+curl -fsS http://127.0.0.1:${SERVER_PORT:-8080}/health
+```
+
+生产环境可以在 `.env` 中固定版本，避免 `latest` 自动指向未来构建：
+
+```dotenv
+SUB2API_IMAGE=ghcr.io/inspoaibox/sub2api-new:sha-提交短哈希
+```
+
+回滚时修改 `.env` 中的镜像标签，然后重新拉取并启动：
+
+```bash
+sed -i 's#^SUB2API_IMAGE=.*#SUB2API_IMAGE=ghcr.io/inspoaibox/sub2api-new:latest#' .env
+docker compose pull sub2api
+docker compose up -d --force-recreate sub2api
+```
+
+不要执行 `docker compose down -v`，也不要删除以下目录，否则会丢失系统数据：
+
+```text
+data/
+postgres_data/
+redis_data/
+```
+
+完整的 GHCR 权限、构建、更新、回滚和数据保护说明见 [`deploy/部署说明_CN.md`](deploy/部署说明_CN.md)。
 
 #### 轻松迁移（本地目录版）
 
-使用 `docker-compose.local.yml` 时，可以轻松迁移到新服务器：
+使用脚本生成的 `docker-compose.yml` 时，可以轻松迁移到新服务器：
 
 ```bash
 # 源服务器
-docker compose -f docker-compose.local.yml down
+docker compose down
 cd ..
 tar czf sub2api-complete.tar.gz sub2api-deploy/
 
@@ -458,23 +523,23 @@ scp sub2api-complete.tar.gz user@new-server:/path/
 # 新服务器
 tar xzf sub2api-complete.tar.gz
 cd sub2api-deploy/
-docker compose -f docker-compose.local.yml up -d
+docker compose up -d
 ```
 
 #### 常用命令
 
 ```bash
 # 停止所有服务
-docker compose -f docker-compose.local.yml down
+docker compose down
 
 # 重启
-docker compose -f docker-compose.local.yml restart
+docker compose restart
 
 # 查看所有日志
-docker compose -f docker-compose.local.yml logs -f
+docker compose logs -f
 
 # 删除所有数据（谨慎！）
-docker compose -f docker-compose.local.yml down
+docker compose down
 rm -rf data/ postgres_data/ redis_data/
 ```
 
