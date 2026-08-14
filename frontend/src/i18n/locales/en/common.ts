@@ -204,11 +204,17 @@ export default {
     channelPricing: 'Channel Pricing',
     channelMonitor: 'Channel Monitor',
     channelStatus: 'Channel Status',
+    usageGuide: 'Usage Guide',
     riskControl: 'Risk Control',
     securityAudit: 'Security Audit',
     contentModeration: 'Content Moderation',
     promptAudit: 'Prompt Audit',
     auditLogs: 'Audit Logs',
+  },
+
+  usageGuide: {
+    title: 'Usage Guide',
+    description: 'A beginner guide from creating an API key to configuring popular clients'
   },
 
   // Auth

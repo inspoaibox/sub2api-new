@@ -73,3 +73,15 @@ describe('model plaza navigation', () => {
     expect(headerSource).not.toContain("t('nav.modelPlaza')")
   })
 })
+
+describe('usage guide navigation', () => {
+  it('places the usage guide directly after channel status', () => {
+    const channelStatusIndex = componentSource.indexOf("{ path: '/monitor', label: t('nav.channelStatus')")
+    const usageGuideIndex = componentSource.indexOf("{ path: '/usage-guide', label: t('nav.usageGuide')")
+    const subscriptionsIndex = componentSource.indexOf("{ path: '/subscriptions', label: t('nav.mySubscriptions')")
+
+    expect(channelStatusIndex).toBeGreaterThan(-1)
+    expect(usageGuideIndex).toBeGreaterThan(channelStatusIndex)
+    expect(usageGuideIndex).toBeLessThan(subscriptionsIndex)
+  })
+})

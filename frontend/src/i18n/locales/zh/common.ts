@@ -204,11 +204,17 @@ export default {
     channelPricing: '渠道定价',
     channelMonitor: '渠道监控',
     channelStatus: '渠道状态',
+    usageGuide: '使用文档',
     riskControl: '风控中心',
     securityAudit: '安全审计',
     contentModeration: '内容审核',
     promptAudit: '提示词审计',
     auditLogs: '操作日志',
+  },
+
+  usageGuide: {
+    title: '使用文档',
+    description: '从创建 API 密钥到完成热门客户端配置的新手教程'
   },
 
   // Auth
