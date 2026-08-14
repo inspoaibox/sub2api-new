@@ -70,7 +70,7 @@ main() {
     if [ -f "docker-compose.yml" ] || [ -f "docker-compose.local.yml" ] || [ -f ".env" ]; then
         print_error "An existing deployment was found in the current directory."
         print_warning "This first-install script will not overwrite Compose files or regenerate secrets."
-        print_info "Run: curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh | bash"
+        print_info "Download docker-update.sh to a temporary file, then run it with bash."
         exit 1
     fi
 

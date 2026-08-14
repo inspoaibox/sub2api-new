@@ -29,6 +29,14 @@ print_error() {
     printf '[ERROR] %s\n' "$1" >&2
 }
 
+report_error() {
+    local exit_code=$?
+    print_error "Update failed at line ${BASH_LINENO[0]} (exit code $exit_code)"
+    exit "$exit_code"
+}
+
+trap report_error ERR
+
 usage() {
     cat <<'EOF'
 Usage: docker-update.sh [--image IMAGE]
@@ -98,6 +106,7 @@ cp -a "$COMPOSE_FILE" "$BACKUP_DIR/$COMPOSE_FILE"
 
 if compose ps --status running --services 2>/dev/null | grep -qx 'postgres'; then
     compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+        < /dev/null \
         > "$BACKUP_DIR/sub2api.sql"
     print_success "PostgreSQL backup created"
 else

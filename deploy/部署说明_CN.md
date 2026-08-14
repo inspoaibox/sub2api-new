@@ -79,15 +79,23 @@ SUB2API_IMAGE=ghcr.io/inspoaibox/sub2api-new:v0.1.175
 
 ```bash
 cd /root/sub2api-deploy
-curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh | bash
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh \
+  -o /tmp/sub2api-docker-update.sh
+bash /tmp/sub2api-docker-update.sh
+rm -f /tmp/sub2api-docker-update.sh
 ```
 
 脚本支持指定镜像进行固定版本更新：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh \
-  | bash -s -- --image ghcr.io/inspoaibox/sub2api-new:sha-提交短哈希
+  -o /tmp/sub2api-docker-update.sh
+bash /tmp/sub2api-docker-update.sh \
+  --image ghcr.io/inspoaibox/sub2api-new:sha-提交短哈希
+rm -f /tmp/sub2api-docker-update.sh
 ```
+
+只有看到 `[SUCCESS] Application container updated`、镜像信息和容器状态，才表示更新完成。仅出现 PostgreSQL 备份成功不代表镜像已经更新。
 
 更新前会在当前目录的 `backups/时间戳/` 下保存：
 
@@ -104,7 +112,8 @@ curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/
 ```bash
 cd /opt/sub2api
 mkdir -p backups
-docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > "backups/sub2api-$(date +%Y%m%d-%H%M%S).sql"
+docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < /dev/null > "backups/sub2api-$(date +%Y%m%d-%H%M%S).sql"
 cp .env "backups/env-$(date +%Y%m%d-%H%M%S)"
 curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-compose.local.yml -o docker-compose.yml
 docker compose pull sub2api

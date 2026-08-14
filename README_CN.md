@@ -438,8 +438,13 @@ ghcr.io/inspoaibox/sub2api-new:latest
 cd /root/sub2api-deploy
 
 # 自动备份 .env、Compose 配置和 PostgreSQL，保留所有数据目录
-curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh | bash
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh \
+  -o /tmp/sub2api-docker-update.sh
+bash /tmp/sub2api-docker-update.sh
+rm -f /tmp/sub2api-docker-update.sh
 ```
+
+只有看到 `[SUCCESS] Application container updated`、镜像信息和容器状态，才表示更新完成。仅出现数据库备份成功不代表镜像已经更新。
 
 更新脚本会执行：
 
@@ -463,6 +468,7 @@ cd /root/sub2api-deploy
 mkdir -p backups
 cp .env "backups/env-$(date -u +%Y%m%d-%H%M%S)"
 docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < /dev/null \
   > "backups/sub2api-$(date -u +%Y%m%d-%H%M%S).sql"
 
 # 先同步当前仓库的 Compose 配置，保留现有 .env 和数据目录

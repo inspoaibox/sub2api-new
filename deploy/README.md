@@ -97,7 +97,10 @@ Use the update script instead:
 
 ```bash
 cd /root/sub2api-deploy
-curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh | bash
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh \
+  -o /tmp/sub2api-docker-update.sh
+bash /tmp/sub2api-docker-update.sh
+rm -f /tmp/sub2api-docker-update.sh
 ```
 
 The script backs up `.env`, the Compose file, and PostgreSQL, then pulls the
@@ -214,7 +217,10 @@ docker compose logs -f sub2api
 docker compose restart sub2api
 
 # Update an existing deployment with backup and health check
-curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh | bash
+curl -fsSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/docker-update.sh \
+  -o /tmp/sub2api-docker-update.sh
+bash /tmp/sub2api-docker-update.sh
+rm -f /tmp/sub2api-docker-update.sh
 
 # Remove all data (caution!)
 docker compose down
