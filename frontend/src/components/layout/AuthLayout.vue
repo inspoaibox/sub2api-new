@@ -449,7 +449,8 @@ onMounted(() => {
     max-width: 480px;
   }
 
-  .auth-login-brand {
+  .auth-login-brand,
+  .auth-layout--register .auth-login-brand {
     min-height: auto;
     padding: 0 0 28px;
   }
@@ -474,6 +475,14 @@ onMounted(() => {
   .auth-layout {
     align-items: flex-start;
     padding: 20px 16px;
+  }
+
+  .auth-layout--register .auth-login-brand {
+    padding-bottom: 16px;
+  }
+
+  .auth-layout--register .auth-brand-copy {
+    display: none;
   }
 
   .auth-brand-copy {

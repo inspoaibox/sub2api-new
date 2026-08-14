@@ -13,6 +13,8 @@ const { t } = useI18n()
 const { copyToClipboard } = useClipboard()
 const copiedEndpoint = ref<string | null>(null)
 
+const MAINLAND_BACKUP_ENDPOINT = 'https://new.aokede.com'
+
 let copiedResetTimer: number | undefined
 
 const allEndpoints = computed(() => {
@@ -25,7 +27,19 @@ const allEndpoints = computed(() => {
       isDefault: true,
     })
   }
+
+  items.push({
+    name: t('keys.endpoints.mainlandBackup'),
+    endpoint: MAINLAND_BACKUP_ENDPOINT,
+    description: t('keys.endpoints.mainlandBackupDescription'),
+    isDefault: false,
+  })
+
+  const normalizedBackupEndpoint = MAINLAND_BACKUP_ENDPOINT.toLowerCase()
   for (const ep of props.customEndpoints) {
+    if (ep.endpoint.trim().replace(/\/+$/, '').toLowerCase() === normalizedBackupEndpoint) {
+      continue
+    }
     items.push({ ...ep, isDefault: false })
   }
   return items
@@ -67,7 +81,7 @@ onBeforeUnmount(() => {
   <div v-if="allEndpoints.length > 0" class="flex flex-wrap gap-2">
     <div
       v-for="(item, index) in allEndpoints"
-      :key="index"
+      :key="`${item.endpoint}-${index}`"
       class="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs transition-colors hover:border-primary-200 dark:border-dark-600 dark:bg-dark-800 dark:hover:border-primary-700"
     >
       <span class="font-medium text-gray-600 dark:text-gray-300">{{ item.name }}</span>

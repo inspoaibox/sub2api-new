@@ -72,6 +72,8 @@ export default {
     endpoints: {
       title: 'API Endpoints',
       default: 'Default',
+      mainlandBackup: 'Mainland China Backup',
+      mainlandBackupDescription: 'Optimized for access from mainland China. Use it when the default endpoint is unstable.',
       copied: 'Copied',
       copiedHint: 'Copied to clipboard',
       clickToCopy: 'Click to copy this endpoint',
