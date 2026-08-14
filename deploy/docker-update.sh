@@ -29,6 +29,38 @@ print_error() {
     printf '[ERROR] %s\n' "$1" >&2
 }
 
+wait_for_application_health() {
+    local host_port=$1
+    local attempts=${HEALTH_CHECK_ATTEMPTS:-60}
+    local interval=${HEALTH_CHECK_INTERVAL_SECONDS:-2}
+    local attempt response
+
+    print_info "Waiting for application health on port $host_port"
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        if response=$(curl -fsS --connect-timeout 2 --max-time 5 "http://127.0.0.1:$host_port/health" 2>/dev/null); then
+            printf '%s\n' "$response"
+            return 0
+        fi
+
+        if [ "$(docker inspect sub2api --format '{{.State.Running}}' 2>/dev/null || true)" != "true" ]; then
+            print_error "Application container stopped during startup"
+            compose ps >&2 || true
+            compose logs --tail=100 sub2api >&2 || true
+            return 1
+        fi
+
+        if (( attempt % 5 == 0 )); then
+            print_info "Application is still starting ($attempt/$attempts)"
+        fi
+        sleep "$interval"
+    done
+
+    print_error "Application health check timed out after $((attempts * interval)) seconds"
+    compose ps >&2 || true
+    compose logs --tail=100 sub2api >&2 || true
+    return 1
+}
+
 report_error() {
     local exit_code=$?
     print_error "Update failed at line ${BASH_LINENO[0]} (exit code $exit_code)"
@@ -141,9 +173,7 @@ compose up -d --force-recreate sub2api
 
 HOST_PORT="$(compose port sub2api 8080 | tail -n 1 | sed 's/.*://')"
 if [ -n "$HOST_PORT" ]; then
-    print_info "Checking application health on port $HOST_PORT"
-    curl -fsS "http://127.0.0.1:$HOST_PORT/health"
-    printf '\n'
+    wait_for_application_health "$HOST_PORT"
 fi
 
 print_success "Application container updated"

@@ -67,14 +67,14 @@ COPY backend/ ./
 # Copy frontend dist from previous stage (must be after backend copy to avoid being overwritten)
 COPY --from=frontend-builder /app/backend/internal/web/dist ./internal/web/dist
 
-# Build the binary (BuildType=release for CI builds, embed frontend)
+# Build the binary for a Docker deployment and embed the frontend.
 # Version precedence: build arg VERSION > exact git tag > cmd/server/VERSION
 RUN VERSION_VALUE="${VERSION}" && \
     if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(./scripts/resolve-version.sh)"; fi && \
     DATE_VALUE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
     CGO_ENABLED=0 GOOS=linux go build \
     -tags embed \
-    -ldflags="-s -w -X main.Version=${VERSION_VALUE} -X main.Commit=${COMMIT} -X main.Date=${DATE_VALUE} -X main.BuildType=release" \
+    -ldflags="-s -w -X main.Version=${VERSION_VALUE} -X main.Commit=${COMMIT} -X main.Date=${DATE_VALUE} -X main.BuildType=docker" \
     -o /app/sub2api \
     ./cmd/server
 
@@ -83,8 +83,10 @@ RUN VERSION_VALUE="${VERSION}" && \
 # -----------------------------------------------------------------------------
 FROM ${ALPINE_IMAGE}
 
+ENV SUB2API_DEPLOYMENT_TYPE=docker
+
 # Labels
-LABEL maintainer="Wei-Shaw <github.com/Wei-Shaw>"
+LABEL maintainer="inspoaibox <github.com/inspoaibox>"
 LABEL description="Sub2API - AI API Gateway Platform"
 LABEL org.opencontainers.image.source="https://github.com/inspoaibox/sub2api-new"
 

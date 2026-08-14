@@ -57,6 +57,18 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=Sub2API 二次开发版 AI API 网关平台
 
+      - name: 解析应用版本
+        id: app-version
+        shell: bash
+        run: |
+          VERSION="${{ inputs.tag }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(tr -d '\r\n' < backend/cmd/server/VERSION)
+          fi
+          VERSION=${VERSION#v}
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "应用版本：$VERSION"
+
       - name: 构建并发布镜像
         uses: docker/build-push-action@v6
         with:
@@ -68,7 +80,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             COMMIT=${{ github.sha }}
-            VERSION=${{ github.ref_name }}
+            VERSION=${{ steps.app-version.outputs.version }}
             GOPROXY=https://goproxy.cn,direct
             GOSUMDB=sum.golang.google.cn
           cache-from: type=gha,scope=sub2api-docker

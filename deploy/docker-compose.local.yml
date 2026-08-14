@@ -55,6 +55,8 @@ services:
       - SERVER_MODE=${SERVER_MODE:-release}
       - ENABLE_SERVER_TIMING=${ENABLE_SERVER_TIMING:-false}
       - RUN_MODE=${RUN_MODE:-standard}
+      - SUB2API_DEPLOYMENT_TYPE=docker
+      - SUB2API_UPDATE_REPOSITORY=${SUB2API_UPDATE_REPOSITORY:-inspoaibox/sub2api-new}
       - UPDATE_GITHUB_TOKEN=${UPDATE_GITHUB_TOKEN:-}
 
       # =======================================================================

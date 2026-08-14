@@ -12,7 +12,11 @@ FROM ${POSTGRES_IMAGE} AS pg-client
 
 FROM ${ALPINE_IMAGE}
 
-LABEL maintainer="Wei-Shaw <github.com/Wei-Shaw>"
+# GoReleaser uses the release binary for both archives and container images.
+# This runtime marker prevents a container from attempting in-place updates.
+ENV SUB2API_DEPLOYMENT_TYPE=docker
+
+LABEL maintainer="inspoaibox <github.com/inspoaibox>"
 LABEL description="Sub2API - AI API Gateway Platform"
 LABEL org.opencontainers.image.source="https://github.com/inspoaibox/sub2api-new"
 

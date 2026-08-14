@@ -18,7 +18,9 @@ export interface VersionInfo {
   release_info?: ReleaseInfo
   cached: boolean
   warning?: string
-  build_type: string // "source" for manual builds, "release" for CI builds
+  build_type: 'source' | 'release' | 'docker' | string
+  can_self_update: boolean
+  update_repository: string
 }
 
 /**

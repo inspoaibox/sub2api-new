@@ -31,13 +31,17 @@ type updateServiceGitHubClientStub struct {
 	release        *GitHubRelease
 	recentReleases []*GitHubRelease
 	recentErr      error
+	latestRepo     string
+	recentRepo     string
 }
 
-func (s *updateServiceGitHubClientStub) FetchLatestRelease(context.Context, string) (*GitHubRelease, error) {
+func (s *updateServiceGitHubClientStub) FetchLatestRelease(_ context.Context, repo string) (*GitHubRelease, error) {
+	s.latestRepo = repo
 	return s.release, nil
 }
 
-func (s *updateServiceGitHubClientStub) FetchRecentReleases(context.Context, string, int) ([]*GitHubRelease, error) {
+func (s *updateServiceGitHubClientStub) FetchRecentReleases(_ context.Context, repo string, _ int) ([]*GitHubRelease, error) {
+	s.recentRepo = repo
 	return s.recentReleases, s.recentErr
 }
 
@@ -67,6 +71,62 @@ func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrNoUpdateAvailable))
 	require.ErrorIs(t, err, ErrNoUpdateAvailable)
+}
+
+func TestUpdateServiceChecksConfiguredRepository(t *testing.T) {
+	github := &updateServiceGitHubClientStub{
+		release: &GitHubRelease{TagName: "v0.1.200", Name: "v0.1.200"},
+	}
+	svc := NewUpdateService(
+		&updateServiceCacheStub{},
+		github,
+		"0.1.199",
+		BuildTypeRelease,
+		"inspoaibox/sub2api-new",
+	)
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.Equal(t, "inspoaibox/sub2api-new", github.latestRepo)
+	require.Equal(t, "inspoaibox/sub2api-new", info.Repository)
+	require.True(t, info.CanSelfUpdate)
+	require.True(t, info.HasUpdate)
+}
+
+func TestUpdateServiceRejectsCachedDataFromAnotherRepository(t *testing.T) {
+	cache := &updateServiceCacheStub{data: `{"latest":"9.9.9","timestamp":4102444800,"repository":"Wei-Shaw/sub2api"}`}
+	github := &updateServiceGitHubClientStub{
+		release: &GitHubRelease{TagName: "v0.1.200", Name: "v0.1.200"},
+	}
+	svc := NewUpdateService(cache, github, "0.1.199", BuildTypeDocker, DefaultUpdateRepository)
+
+	info, err := svc.CheckUpdate(context.Background(), false)
+
+	require.NoError(t, err)
+	require.Equal(t, DefaultUpdateRepository, github.latestRepo)
+	require.Equal(t, "0.1.200", info.LatestVersion)
+	require.False(t, info.CanSelfUpdate)
+}
+
+func TestUpdateServiceBlocksInPlaceOperationsForDocker(t *testing.T) {
+	svc := NewUpdateService(
+		&updateServiceCacheStub{},
+		&updateServiceGitHubClientStub{},
+		"0.1.200",
+		BuildTypeDocker,
+	)
+
+	require.ErrorIs(t, svc.PerformUpdate(context.Background()), ErrInPlaceUpdateUnavailable)
+	require.ErrorIs(t, svc.Rollback(), ErrInPlaceUpdateUnavailable)
+	_, err := svc.ListRollbackVersions(context.Background())
+	require.ErrorIs(t, err, ErrInPlaceUpdateUnavailable)
+	require.ErrorIs(t, svc.RollbackToVersion(context.Background(), "0.1.199"), ErrInPlaceUpdateUnavailable)
+}
+
+func TestUpdateServiceUsesSemanticVersionPrereleaseOrdering(t *testing.T) {
+	require.Less(t, compareVersions("0.1.200-custom.1", "0.1.200"), 0)
+	require.Greater(t, compareVersions("0.1.200-custom.2", "0.1.200-custom.1"), 0)
 }
 
 func newRollbackTestService(current string, releases []*GitHubRelease) *UpdateService {

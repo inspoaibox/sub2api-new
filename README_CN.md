@@ -233,7 +233,7 @@ Nginx 默认会丢弃名称中含下划线的请求头（如 `session_id`），�
 #### 安装步骤
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/install.sh | sudo bash
 ```
 
 脚本会自动：
@@ -283,7 +283,7 @@ sudo journalctl -u sub2api -f
 sudo systemctl restart sub2api
 
 # 卸载
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install.sh | sudo bash -s -- uninstall -y
+curl -sSL https://raw.githubusercontent.com/inspoaibox/sub2api-new/main/deploy/install.sh | sudo bash -s -- uninstall -y
 ```
 
 ---
@@ -426,6 +426,24 @@ docker compose logs sub2api | grep "admin password"
 ```text
 ghcr.io/inspoaibox/sub2api-new:latest
 ```
+
+管理后台右上角的版本检测同样读取二开仓库 `inspoaibox/sub2api-new`，不再读取上游 `Wei-Shaw/sub2api`。版本检测读取的是 **GitHub Release**，普通 `main` 分支构建不会自动成为新版本：
+
+```bash
+# 确认 main 已完成测试并推送后，创建正式版本标签
+git tag -a v0.1.177 -m "Sub2API v0.1.177"
+git push origin v0.1.177
+```
+
+`v*` 标签会触发 `Release` 工作流，创建二开仓库 Release 并发布对应版本镜像。只有 Release 创建成功后，后台才会显示该版本及更新日志。Docker 部署不会在容器内替换二进制，也不会显示在线回退按钮；后台会提供 Docker 更新命令，实际升级仍通过拉取镜像并重新创建容器完成。
+
+如需临时切换版本检测仓库，可在 `.env` 中设置：
+
+```dotenv
+SUB2API_UPDATE_REPOSITORY=inspoaibox/sub2api-new
+```
+
+公开仓库无需 Token；私有仓库还需配置只具备读取 Release 权限的 `UPDATE_GITHUB_TOKEN`。
 
 每次更新代码并推送到 `main` 后，请先在 GitHub Actions 确认 `Docker 镜像构建与发布` 工作流成功，再更新服务器。普通 CI 通过不代表 Docker 镜像已经发布完成。
 

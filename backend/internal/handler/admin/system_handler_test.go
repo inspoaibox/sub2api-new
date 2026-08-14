@@ -322,3 +322,17 @@ func TestSystemHandlerGetRollbackVersionsError(t *testing.T) {
 
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
+
+func TestSystemHandlerGetRollbackVersionsUnavailableForDocker(t *testing.T) {
+	updateSvc := &systemHandlerUpdateServiceStub{
+		rollbackVersionsErr: service.ErrInPlaceUpdateUnavailable,
+	}
+	repo := newMemoryIdempotencyRepoStub()
+	router := newSystemHandlerTestRouter(t, updateSvc, repo)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/system/rollback-versions", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusConflict, rec.Code)
+}

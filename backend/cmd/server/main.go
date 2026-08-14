@@ -20,6 +20,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/Wei-Shaw/sub2api/internal/setup"
 	"github.com/Wei-Shaw/sub2api/internal/web"
 
@@ -31,22 +32,29 @@ var embeddedVersion string
 
 // Build-time variables (can be set by ldflags)
 var (
-	Version   = ""
-	Commit    = "unknown"
-	Date      = "unknown"
-	BuildType = "source" // "source" for manual builds, "release" for CI builds (set by ldflags)
+	Version          = ""
+	Commit           = "unknown"
+	Date             = "unknown"
+	BuildType        = service.BuildTypeSource
+	UpdateRepository = service.DefaultUpdateRepository
 )
 
 func init() {
-	// 如果 Version 已通过 ldflags 注入（例如 -X main.Version=...），则不要覆盖。
-	if strings.TrimSpace(Version) != "" {
-		return
+	// 如果 Version 未通过 ldflags 注入，则从 embedded VERSION 文件读取。
+	if strings.TrimSpace(Version) == "" {
+		Version = strings.TrimSpace(embeddedVersion)
+		if Version == "" {
+			Version = "0.0.0-dev"
+		}
 	}
 
-	// 默认从 embedded VERSION 文件读取版本号（编译期打包进二进制）。
-	Version = strings.TrimSpace(embeddedVersion)
-	if Version == "" {
-		Version = "0.0.0-dev"
+	// Docker images use this runtime marker as a safeguard for GoReleaser images,
+	// which package the same release binary that is also uploaded as an archive.
+	if deploymentType := strings.TrimSpace(os.Getenv("SUB2API_DEPLOYMENT_TYPE")); deploymentType != "" {
+		BuildType = deploymentType
+	}
+	if repository := strings.TrimSpace(os.Getenv("SUB2API_UPDATE_REPOSITORY")); repository != "" {
+		UpdateRepository = repository
 	}
 }
 
@@ -144,8 +152,9 @@ func runMainServer() {
 	}
 
 	buildInfo := handler.BuildInfo{
-		Version:   Version,
-		BuildType: BuildType,
+		Version:          Version,
+		BuildType:        BuildType,
+		UpdateRepository: UpdateRepository,
 	}
 
 	app, err := initializeApplication(buildInfo)
