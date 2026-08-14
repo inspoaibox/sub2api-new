@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 
 const routeState = vi.hoisted(() => ({
@@ -116,6 +116,11 @@ describe('StripePaymentView', () => {
     stripeInstance.confirmAlipayPayment.mockReset()
     stripeInstance.confirmWechatPayPayment.mockReset()
     window.localStorage.clear()
+    Object.defineProperty(window, 'opener', { configurable: true, value: null })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(window, 'opener', { configurable: true, value: null })
   })
 
   it('本地恢复快照缺失时使用订单接口返回的 Stripe 币种展示金额', async () => {
@@ -157,7 +162,12 @@ describe('StripePaymentView', () => {
       expect.objectContaining({ payment_method_options: expect.any(Object) }),
       { handleActions: false },
     )
-    expect(wrapper.find('img[alt="WeChat Pay QR"]').attributes('src')).toBe('data:image/png;base64,wechat-qr')
+    const qrImage = wrapper.find('img[alt="WeChat Pay QR"]')
+    expect(qrImage.attributes('src')).toBe('data:image/png;base64,wechat-qr')
+    expect(qrImage.classes()).toContain('wechat-qr-image')
+
+    await wrapper.get('button.btn-secondary').trigger('click')
+    expect(routerPush).toHaveBeenCalledWith('/purchase')
     wrapper.unmount()
   })
 
@@ -192,5 +202,34 @@ describe('StripePaymentView', () => {
     expect(wrapper.find('img[alt="WeChat Pay QR"]').attributes('src')).toBe('data:image/png;base64,wechat-element-qr')
     expect(wrapper.text()).not.toContain('payment.stripeSuccessProcessing')
     wrapper.unmount()
+  })
+
+  it('弹窗中的关闭按钮只关闭窗口，不修改订单或跳转主页面', async () => {
+    routeState.query = {
+      order_id: '42',
+      client_secret: 'pi_secret_42',
+      method: 'wechat_pay',
+    }
+    Object.defineProperty(window, 'opener', { configurable: true, value: { closed: false } })
+    const closeSpy = vi.spyOn(window, 'close').mockImplementation(() => undefined)
+    getOrder.mockResolvedValue({ data: orderFactory() })
+    stripeInstance.confirmWechatPayPayment.mockResolvedValue({
+      paymentIntent: {
+        status: 'requires_action',
+        next_action: {
+          wechat_pay_display_qr_code: { image_data_url: 'data:image/png;base64,wechat-qr' },
+        },
+      },
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await flushPromises()
+    await wrapper.get('button.btn-secondary').trigger('click')
+
+    expect(closeSpy).toHaveBeenCalledOnce()
+    expect(routerPush).not.toHaveBeenCalled()
+    wrapper.unmount()
+    closeSpy.mockRestore()
   })
 })

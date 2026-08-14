@@ -125,7 +125,7 @@ describe('decidePaymentLaunch', () => {
     expect(decision.stripeMethod).toBeUndefined()
   })
 
-  it('routes a direct Stripe WeChat choice to the hosted QR flow', () => {
+  it('opens a direct Stripe WeChat choice in the desktop QR window', () => {
     const decision = decidePaymentLaunch(createOrderResult({
       client_secret: 'cs_test',
     }), {
@@ -134,9 +134,22 @@ describe('decidePaymentLaunch', () => {
       isMobile: false,
     })
 
-    expect(decision.kind).toBe('stripe_route')
+    expect(decision.kind).toBe('stripe_popup')
     expect(decision.stripeMethod).toBe('wechat_pay')
     expect(decision.paymentState.paymentType).toBe('stripe_wxpay')
+  })
+
+  it('keeps direct Stripe WeChat in the current route on mobile', () => {
+    const decision = decidePaymentLaunch(createOrderResult({
+      client_secret: 'cs_test',
+    }), {
+      visibleMethod: 'stripe_wxpay',
+      orderType: 'balance',
+      isMobile: true,
+    })
+
+    expect(decision.kind).toBe('stripe_route')
+    expect(decision.stripeMethod).toBe('wechat_pay')
   })
 
   it('opens direct Stripe Alipay in the desktop payment window', () => {

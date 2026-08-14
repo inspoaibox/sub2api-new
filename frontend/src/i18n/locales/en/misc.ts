@@ -342,6 +342,7 @@ export default {
       cancelledDesc: 'You have cancelled this payment.',
       waitingPayment: 'Waiting for payment...',
       cancelOrder: 'Cancel Order',
+      closePaymentWindow: 'Close Payment Window',
       alipayOpening: 'Opening Alipay',
       alipayContinueInApp: 'Complete payment in Alipay',
       alipayWaitingHint: 'The server will confirm the payment and update this page automatically',

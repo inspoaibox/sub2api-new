@@ -271,7 +271,7 @@ import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderTy
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
-import { METHOD_ORDER, getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
+import { METHOD_ORDER, getPaymentPopupFeatures, getQrPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
 import {
   PAYMENT_RECOVERY_STORAGE_KEY,
   buildCreateOrderPayload,
@@ -791,8 +791,8 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     }
 
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
-    const openWindow = (url: string) => {
-      const win = window.open(url, 'paymentPopup', getPaymentPopupFeatures())
+    const openWindow = (url: string, features = getPaymentPopupFeatures()) => {
+      const win = window.open(url, 'paymentPopup', features)
       if (!win || win.closed) {
         window.location.href = url
       }
@@ -852,7 +852,12 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     persistRecoverySnapshot(decision.recovery)
 
     if (decision.kind === 'stripe_popup') {
-      openWindow(decision.paymentState.payUrl)
+      openWindow(
+        decision.paymentState.payUrl,
+        decision.stripeMethod === 'wechat_pay'
+          ? getQrPaymentPopupFeatures()
+          : getPaymentPopupFeatures(),
+      )
       return
     }
     if (decision.kind === 'stripe_route') {

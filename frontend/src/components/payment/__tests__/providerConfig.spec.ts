@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   PAYMENT_CURRENCY_OPTIONS,
   PROVIDER_CONFIG_FIELDS,
+  getPaymentPopupFeatures,
+  getQrPaymentPopupFeatures,
   isBuiltInAlipayMethod,
   isBuiltInWxpayMethod,
   parseEasyPayCustomMethods,
@@ -91,5 +93,14 @@ describe('built-in payment method helpers', () => {
     expect(isBuiltInWxpayMethod('wxpay')).toBe(true)
     expect(isBuiltInWxpayMethod('wxpay_direct')).toBe(true)
     expect(isBuiltInWxpayMethod('card_wxpay')).toBe(false)
+  })
+})
+
+describe('payment popup sizing', () => {
+  it('uses a compact window for QR payments and a larger window for gateways', () => {
+    expect(getQrPaymentPopupFeatures()).toContain('width=520')
+    expect(getQrPaymentPopupFeatures()).toContain('height=720')
+    expect(getPaymentPopupFeatures()).toContain('width=1250')
+    expect(getPaymentPopupFeatures()).toContain('height=900')
   })
 })

@@ -92,19 +92,34 @@ export const STRIPE_SDK_API_VERSION = '2026-03-25.dahlia'
  * (QR + account login panel) needs ~1200×900 to render without any scrolling. */
 const PAYMENT_POPUP_PREFERRED_WIDTH = 1250
 const PAYMENT_POPUP_PREFERRED_HEIGHT = 900
+const QR_PAYMENT_POPUP_PREFERRED_WIDTH = 520
+const QR_PAYMENT_POPUP_PREFERRED_HEIGHT = 720
+
+function buildPopupFeatures(preferredWidth: number, preferredHeight: number): string {
+  const screen = typeof window !== 'undefined' ? window.screen : null
+  const availW = screen?.availWidth && screen.availWidth > 0
+    ? screen.availWidth
+    : preferredWidth + 40
+  const availH = screen?.availHeight && screen.availHeight > 0
+    ? screen.availHeight
+    : preferredHeight + 40
+  const width = Math.min(preferredWidth, Math.max(320, availW - 40))
+  const height = Math.min(preferredHeight, Math.max(480, availH - 40))
+  const left = Math.max(0, Math.floor((availW - width) / 2))
+  const top = Math.max(0, Math.floor((availH - height) / 2))
+  return `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+}
 
 /** Build a window.open features string sized to fit within the current screen
  * while preferring the above dimensions. Centers the popup on the available
  * work area so nothing is clipped on smaller laptop displays. */
 export function getPaymentPopupFeatures(): string {
-  const screen = typeof window !== 'undefined' ? window.screen : null
-  const availW = screen?.availWidth ?? PAYMENT_POPUP_PREFERRED_WIDTH
-  const availH = screen?.availHeight ?? PAYMENT_POPUP_PREFERRED_HEIGHT
-  const width = Math.min(PAYMENT_POPUP_PREFERRED_WIDTH, availW - 40)
-  const height = Math.min(PAYMENT_POPUP_PREFERRED_HEIGHT, availH - 40)
-  const left = Math.max(0, Math.floor((availW - width) / 2))
-  const top = Math.max(0, Math.floor((availH - height) / 2))
-  return `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+  return buildPopupFeatures(PAYMENT_POPUP_PREFERRED_WIDTH, PAYMENT_POPUP_PREFERRED_HEIGHT)
+}
+
+/** Compact popup for QR-based payment methods. */
+export function getQrPaymentPopupFeatures(): string {
+  return buildPopupFeatures(QR_PAYMENT_POPUP_PREFERRED_WIDTH, QR_PAYMENT_POPUP_PREFERRED_HEIGHT)
 }
 
 /** Webhook paths for each provider (relative to origin). */

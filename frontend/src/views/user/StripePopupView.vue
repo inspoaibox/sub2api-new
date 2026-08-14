@@ -43,8 +43,13 @@
       <!-- WeChat QR: keep it in this page so clicking an overlay cannot dismiss it. -->
       <div v-else-if="wechatQrUrl" class="space-y-4 py-4 text-center">
         <p class="text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('payment.qr.scanWxpay') }}</p>
-        <img :src="wechatQrUrl" alt="WeChat Pay QR" class="mx-auto h-56 w-56 rounded border border-green-200" />
+        <div class="mx-auto w-fit rounded-lg border-2 border-[#2BB741] bg-white p-3">
+          <img :src="wechatQrUrl" alt="WeChat Pay QR" class="wechat-qr-image block h-auto max-w-full" />
+        </div>
         <p class="text-sm text-gray-500 dark:text-slate-400">{{ t('payment.qr.waitingPayment') }}</p>
+        <button class="btn btn-secondary w-full" type="button" @click="closeWindow">
+          {{ t('payment.qr.closePaymentWindow') }}
+        </button>
       </div>
 
       <!-- Loading / Redirecting -->
@@ -65,6 +70,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { buildApiUrl } from '@/api/client'
+import { resolveStripeWechatQrImage, type StripeWechatQrCode } from '@/components/payment/stripeWechatQr'
 
 interface StripeWithWechatPay {
   confirmWechatPayPayment(
@@ -75,7 +81,7 @@ interface StripeWithWechatPay {
     error?: { message?: string }
     paymentIntent?: {
       status: string
-      next_action?: { wechat_pay_display_qr_code?: { image_data_url?: string } }
+      next_action?: { wechat_pay_display_qr_code?: StripeWechatQrCode }
     }
   }>
 }
@@ -104,7 +110,13 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 let initTimeoutTimer: ReturnType<typeof setTimeout> | null = null
 let messageHandler: ((event: MessageEvent) => void) | null = null
 
-function closeWindow() { window.close() }
+function closeWindow() {
+  if (window.opener && !window.opener.closed) {
+    window.close()
+    return
+  }
+  window.location.assign('/purchase')
+}
 
 function clearInitTimeout() {
   if (initTimeoutTimer) {
@@ -172,8 +184,13 @@ async function initStripe(clientSecret: string, publishableKey: string) {
       }, { handleActions: false })
       if (result.error) {
         error.value = result.error.message || t('payment.result.failed')
-      } else if (result.paymentIntent?.next_action?.wechat_pay_display_qr_code?.image_data_url) {
-        wechatQrUrl.value = result.paymentIntent.next_action.wechat_pay_display_qr_code.image_data_url
+      } else if (result.paymentIntent?.next_action?.wechat_pay_display_qr_code) {
+        const qrImage = await resolveStripeWechatQrImage(result.paymentIntent.next_action.wechat_pay_display_qr_code)
+        if (!qrImage) {
+          error.value = t('payment.stripePopup.qrFailed')
+          return
+        }
+        wechatQrUrl.value = qrImage
         hint.value = t('payment.qr.waitingPayment')
         startPolling()
       } else if (result.paymentIntent?.status === 'succeeded') {
@@ -218,3 +235,10 @@ function startPolling() {
   }, 3000)
 }
 </script>
+
+<style scoped>
+.wechat-qr-image {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+</style>

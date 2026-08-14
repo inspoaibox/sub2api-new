@@ -230,7 +230,9 @@ export function decidePaymentLaunch(
     const directStripeMethod = getStripeRouteMethod(visibleMethod)
     const stripeMethod: StripeVisibleMethod | undefined = directStripeMethod
       || (visibleMethod === 'wxpay' ? 'wechat_pay' : visibleMethod === 'alipay' ? 'alipay' : undefined)
-    const kind: PaymentLaunchKind = stripeMethod === 'alipay' && !context.isMobile
+    const opensDesktopPopup = !context.isMobile
+      && (stripeMethod === 'alipay' || stripeMethod === 'wechat_pay')
+    const kind: PaymentLaunchKind = opensDesktopPopup
       ? 'stripe_popup'
       : 'stripe_route'
     const payUrl = kind === 'stripe_popup'
