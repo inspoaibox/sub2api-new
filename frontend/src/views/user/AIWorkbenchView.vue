@@ -34,18 +34,25 @@
 
             <div>
               <label for="workbench-model" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">{{ t('aiWorkbench.model') }}</label>
-              <input
+              <Select
                 id="workbench-model"
-                v-model.trim="form.model"
-                class="input w-full"
-                type="text"
-                :placeholder="defaultModel"
-                :list="`workbench-models-${mode}`"
-                autocomplete="off"
+                v-model="form.model"
+                :options="modelOptions"
+                searchable
+                creatable
+                :disabled="!selectedKey || loadingModels"
+                :placeholder="loadingModels ? t('aiWorkbench.loadingModels') : t('aiWorkbench.selectModel')"
+                :empty-text="t('aiWorkbench.noModels')"
               />
-              <datalist :id="`workbench-models-${mode}`">
-                <option v-for="model in modelSuggestions" :key="model" :value="model" />
-              </datalist>
+              <p v-if="loadingModels" class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('aiWorkbench.loadingModels') }}
+              </p>
+              <p v-else-if="modelLoadError" class="mt-1.5 text-xs text-red-600 dark:text-red-400">
+                {{ modelLoadError }}
+              </p>
+              <p v-else-if="selectedKey && !availableModels.length" class="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
+                {{ t('aiWorkbench.noModelsForKey') }}
+              </p>
             </div>
 
             <div>
@@ -288,6 +295,7 @@ import {
   getVideoStatus,
   resolveImageUrl,
   resolveVideoUrl,
+  listMediaModels,
   streamImage,
   streamImageEdit,
 } from '@/api/mediaGeneration'
@@ -321,8 +329,11 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 
 const loadingKeys = ref(true)
+const loadingModels = ref(false)
+const modelLoadError = ref('')
 const generating = ref(false)
 const apiKeys = ref<ApiKey[]>([])
+const availableModels = ref<string[]>([])
 const selectedKeyId = ref<number | null>(null)
 const referenceFile = ref<File | null>(null)
 const referencePreview = ref('')
@@ -332,6 +343,8 @@ const history = ref<GenerationResult[]>([])
 const selectedResultId = ref('')
 const objectUrls = new Set<string>()
 let pollGeneration = 0
+let modelRequestSeq = 0
+let modelAbortController: AbortController | null = null
 let historySaveTimer: ReturnType<typeof setTimeout> | null = null
 let historyLoadGeneration = 0
 
@@ -367,11 +380,7 @@ const defaultModel = computed(() => {
   if (props.mode === 'video') return 'grok-imagine-video'
   return selectedKey.value?.group?.platform === 'grok' ? 'grok-imagine-image' : 'gpt-image-2'
 })
-const modelSuggestions = computed(() => props.mode === 'video'
-  ? ['grok-imagine-video', 'grok-imagine-video-1.5']
-  : selectedKey.value?.group?.platform === 'grok'
-    ? ['grok-imagine-image', 'grok-imagine-image-pro']
-    : ['gpt-image-2', 'gpt-image-1.5', 'gpt-image-1'])
+const modelOptions = computed(() => availableModels.value.map((model) => ({ value: model, label: model })))
 const keyOptions = computed(() => compatibleKeys.value.map((key) => ({
   value: key.id,
   label: `${key.name} · ${key.group?.name || platformLabel(key.group?.platform)}`,
@@ -432,7 +441,48 @@ function platformLabel(platform?: GroupPlatform) {
 }
 
 function handleKeyChange() {
-  form.model = defaultModel.value
+  void loadAvailableModels()
+}
+
+function preferredModel(models: string[]) {
+  const preferred = defaultModel.value
+  return models.includes(preferred) ? preferred : models[0] || ''
+}
+
+async function loadAvailableModels() {
+  const key = selectedKey.value
+  const requestID = ++modelRequestSeq
+  modelAbortController?.abort()
+  modelAbortController = null
+  availableModels.value = []
+  modelLoadError.value = ''
+  form.model = ''
+  if (!key) return
+
+  const controller = new AbortController()
+  modelAbortController = controller
+  loadingModels.value = true
+  try {
+    const response = await listMediaModels(key.key, props.mode, controller.signal)
+    if (requestID !== modelRequestSeq) return
+    const seen = new Set<string>()
+    availableModels.value = (response.data || [])
+      .map((model) => String(model.id || '').trim())
+      .filter((model) => {
+        if (!model || seen.has(model)) return false
+        seen.add(model)
+        return true
+      })
+    form.model = preferredModel(availableModels.value)
+  } catch (error) {
+    if (requestID !== modelRequestSeq || controller.signal.aborted) return
+    modelLoadError.value = errorMessage(error, t('aiWorkbench.loadModelsFailed'))
+  } finally {
+    if (requestID === modelRequestSeq) {
+      loadingModels.value = false
+      if (modelAbortController === controller) modelAbortController = null
+    }
+  }
 }
 
 async function loadKeys() {
@@ -448,7 +498,7 @@ async function loadKeys() {
     }
     apiKeys.value = loaded
     selectedKeyId.value = compatibleKeys.value[0]?.id || null
-    form.model = defaultModel.value
+    await loadAvailableModels()
     await restorePersistedVideos()
   } catch (error) {
     appStore.showError(errorMessage(error, t('aiWorkbench.loadKeysFailed')))
@@ -818,7 +868,7 @@ watch(() => props.mode, (_mode, previousMode) => {
   selectedResultId.value = ''
   clearReference()
   selectedKeyId.value = compatibleKeys.value[0]?.id || null
-  form.model = defaultModel.value
+  void loadAvailableModels()
   void restoreHistory().then(restorePersistedVideos)
 })
 
@@ -832,6 +882,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   pollGeneration += 1
   historyLoadGeneration += 1
+  modelRequestSeq += 1
+  modelAbortController?.abort()
+  modelAbortController = null
   if (historySaveTimer) {
     clearTimeout(historySaveTimer)
     historySaveTimer = null

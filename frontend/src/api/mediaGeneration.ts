@@ -31,6 +31,18 @@ export interface ImageGenerationStreamEvent {
   error?: string
 }
 
+export interface MediaModel {
+  id: string
+  object?: string
+  owned_by?: string
+  capability?: 'image' | 'video' | string
+}
+
+export interface MediaModelsResponse {
+  object?: string
+  data?: MediaModel[]
+}
+
 type ImageGenerationStreamListener = (event: ImageGenerationStreamEvent) => void
 
 export interface VideoGenerationRequest {
@@ -68,6 +80,20 @@ function headers(apiKey: string, contentType = 'application/json'): HeadersInit 
     Authorization: `Bearer ${apiKey}`,
     'Content-Type': contentType,
   }
+}
+
+export async function listMediaModels(
+  apiKey: string,
+  mode: 'image' | 'video',
+  signal?: AbortSignal,
+): Promise<MediaModelsResponse> {
+  const endpoint = mode === 'image' ? '/v1/images/models' : '/v1/videos/models'
+  const response = await fetch(buildGatewayUrl(endpoint), {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    signal,
+  })
+  if (!response.ok) throw await parseError(response)
+  return response.json()
 }
 
 export async function generateImage(apiKey: string, payload: ImageGenerationRequest): Promise<ImageGenerationResponse> {

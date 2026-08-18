@@ -1140,6 +1140,68 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	})
 }
 
+// ImageModels returns image models that can be submitted with the current API
+// key. Unlike /v1/models, this endpoint excludes text-only models.
+// GET /v1/images/models
+func (h *GatewayHandler) ImageModels(c *gin.Context) {
+	h.mediaModels(c, service.MediaModelKindImage)
+}
+
+// VideoModels returns video models that can be submitted with the current API
+// key. Unlike /v1/models, this endpoint excludes text/image-only models.
+// GET /v1/videos/models
+func (h *GatewayHandler) VideoModels(c *gin.Context) {
+	h.mediaModels(c, service.MediaModelKindVideo)
+}
+
+func (h *GatewayHandler) mediaModels(c *gin.Context, kind string) {
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
+	if !ok || apiKey == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{
+			"type": "authentication_error", "message": "Invalid API key",
+		}})
+		return
+	}
+	if !service.GroupAllowsImageGeneration(apiKey.Group) {
+		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{
+			"type": "permission_error", "message": service.ImageGenerationPermissionMessage(),
+		}})
+		return
+	}
+
+	var groupID *int64
+	platform := ""
+	var candidates []string
+	if apiKey.Group != nil {
+		groupID = &apiKey.Group.ID
+		platform = apiKey.Group.Platform
+		if apiKey.Group.ModelsListConfig.Enabled {
+			candidates = apiKey.Group.ModelsListConfig.Models
+		}
+	}
+	models, err := h.gatewayService.GetAvailableMediaModels(c.Request.Context(), groupID, platform, kind, candidates)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{
+			"type": "server_error", "message": "Failed to load available media models",
+		}})
+		return
+	}
+	if apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
+		models = filterModelsByCustomList(models, nil, apiKey.Group.ModelsListConfig.Models)
+	}
+
+	data := make([]gin.H, 0, len(models))
+	for _, model := range models {
+		data = append(data, gin.H{
+			"id":         model,
+			"object":     "model",
+			"owned_by":   platform,
+			"capability": kind,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"object": "list", "data": data})
+}
+
 func (h *GatewayHandler) compositeAvailableModels(ctx context.Context, groupID *int64) []string {
 	if h == nil || h.gatewayService == nil {
 		return nil

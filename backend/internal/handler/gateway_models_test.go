@@ -27,6 +27,7 @@ type gatewayModelsResponseForTest struct {
 type gatewayModelItemForTest struct {
 	ID                      string                                `json:"id"`
 	Object                  string                                `json:"object"`
+	Capability              string                                `json:"capability"`
 	Created                 int64                                 `json:"created"`
 	OwnedBy                 string                                `json:"owned_by"`
 	CreatedAt               string                                `json:"created_at"`
@@ -51,6 +52,24 @@ func (s *gatewayModelsAccountRepoStub) ListSchedulableByGroupID(ctx context.Cont
 	return out, nil
 }
 
+func (s *gatewayModelsAccountRepoStub) ListModelAvailabilityCandidates(_ context.Context, groupID *int64, platforms []string, _ bool) ([]service.Account, error) {
+	if groupID == nil {
+		return nil, nil
+	}
+	allowed := make(map[string]struct{}, len(platforms))
+	for _, platform := range platforms {
+		allowed[platform] = struct{}{}
+	}
+	accounts := s.byGroup[*groupID]
+	out := make([]service.Account, 0, len(accounts))
+	for _, account := range accounts {
+		if _, ok := allowed[account.Platform]; ok {
+			out = append(out, account)
+		}
+	}
+	return out, nil
+}
+
 func newGatewayModelsHandlerForTest(repo service.AccountRepository) *GatewayHandler {
 	return &GatewayHandler{
 		gatewayService: service.NewGatewayService(
@@ -67,6 +86,77 @@ func TestDefaultModelIDsForCompositeIncludesAntigravityDefaults(t *testing.T) {
 
 	compositeIDs := defaultModelIDsForPlatform(service.PlatformComposite)
 	require.Contains(t, compositeIDs, antigravityIDs[0])
+}
+
+func TestGatewayMediaModelsReturnsModelsForCurrentAPIKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name       string
+		platform   string
+		kind       string
+		accounts   []service.Account
+		handle     func(*GatewayHandler, *gin.Context)
+		wantModels []string
+	}{
+		{
+			name:     "image models",
+			platform: service.PlatformOpenAI,
+			kind:     service.MediaModelKindImage,
+			accounts: []service.Account{{
+				Platform: service.PlatformOpenAI,
+				Credentials: map[string]any{"model_mapping": map[string]any{
+					"gpt-image-2": "gpt-image-2",
+					"gpt-5.6":     "gpt-5.6",
+				}},
+			}},
+			handle:     func(h *GatewayHandler, c *gin.Context) { h.ImageModels(c) },
+			wantModels: []string{"gpt-image-2"},
+		},
+		{
+			name:     "video models",
+			platform: service.PlatformGrok,
+			kind:     service.MediaModelKindVideo,
+			accounts: []service.Account{{
+				Platform: service.PlatformGrok,
+				Credentials: map[string]any{"model_mapping": map[string]any{
+					"grok-imagine-video": "grok-imagine-video",
+					"grok-4.5":           "grok-4.5",
+				}},
+			}},
+			handle:     func(h *GatewayHandler, c *gin.Context) { h.VideoModels(c) },
+			wantModels: []string{"grok-imagine-video"},
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			groupID := int64(700 + i)
+			h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{
+				byGroup: map[int64][]service.Account{groupID: tt.accounts},
+			})
+
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodGet, "/v1/media/models", nil)
+			c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{
+				ID:                   groupID,
+				Platform:             tt.platform,
+				AllowImageGeneration: true,
+			}})
+
+			tt.handle(h, c)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			var got gatewayModelsResponseForTest
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+			require.Equal(t, "list", got.Object)
+			require.Equal(t, tt.wantModels, modelIDsForTest(got.Data))
+			for _, model := range got.Data {
+				require.Equal(t, tt.kind, model.Capability)
+			}
+		})
+	}
 }
 
 func TestGatewayModels_GeminiGroupFallsBackToGeminiModels(t *testing.T) {

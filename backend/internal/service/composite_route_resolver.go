@@ -15,6 +15,15 @@ func NewCompositeRouteResolver(repo CompositeModelRouteRepository) *CompositeRou
 	return &CompositeRouteResolver{repo: repo}
 }
 
+// ListRoutes returns enabled routes for a group. Gateway media model discovery
+// uses the same route source as request-time composite routing.
+func (r *CompositeRouteResolver) ListRoutes(ctx context.Context, groupID int64) ([]CompositeModelRoute, error) {
+	if r == nil || r.repo == nil || groupID <= 0 {
+		return nil, nil
+	}
+	return r.repo.ListByGroup(ctx, groupID, false)
+}
+
 func (r *CompositeRouteResolver) Resolve(ctx context.Context, groupID int64, model, endpoint string) (CompositeRouteDecision, error) {
 	model = strings.TrimSpace(model)
 	endpoint = normalizeCompositeRouteEndpoint(endpoint)
