@@ -697,7 +697,7 @@ gateway:
 
 `config.yaml` 还支持以下安全相关配置：
 
-- `cors.allowed_origins` 配置 CORS 白名单
+- `cors.allowed_origins` 配置面板和管理接口的 CORS 白名单；公开 `/v1` API 固定允许任意网页来源使用 API Key 调用，且不允许携带 Cookie 凭证
 - `security.url_allowlist` 配置上游/价格数据/CRS 主机白名单
 - `security.url_allowlist.enabled` 可关闭 URL 校验（慎用）
 - `security.url_allowlist.allow_insecure_http` 关闭校验时允许 HTTP URL

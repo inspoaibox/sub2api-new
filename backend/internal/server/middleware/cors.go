@@ -30,7 +30,7 @@ func CORS(cfg config.CORSConfig) gin.HandlerFunc {
 
 	corsWarningOnce.Do(func() {
 		if len(allowedOrigins) == 0 {
-			log.Println("Warning: CORS allowed_origins not configured; cross-origin requests will be rejected.")
+			log.Println("Warning: CORS allowed_origins not configured; cross-origin requests outside the public /v1 API will be rejected.")
 		}
 		if wildcardWithSpecific {
 			log.Println("Warning: CORS allowed_origins includes '*'; wildcard will take precedence over explicit origins.")
@@ -52,7 +52,10 @@ func CORS(cfg config.CORSConfig) gin.HandlerFunc {
 	}
 	allowHeaders := []string{
 		"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization",
-		"accept", "origin", "Cache-Control", "X-Requested-With", "X-API-Key", "X-Admin-UI-Request", "X-User-UI-Request",
+		"accept", "origin", "Cache-Control", "X-Requested-With", "X-API-Key", "X-Goog-Api-Key",
+		"Anthropic-Version", "Anthropic-Beta", "Anthropic-Dangerous-Direct-Browser-Access",
+		"OpenAI-Organization", "OpenAI-Project", "OpenAI-Beta", "Idempotency-Key",
+		"X-Admin-UI-Request", "X-User-UI-Request",
 	}
 	// OpenAI Node SDK 会发送 x-stainless-* 请求头，需在 CORS 中显式放行。
 	openAIProperties := []string{
@@ -65,20 +68,29 @@ func CORS(cfg config.CORSConfig) gin.HandlerFunc {
 	allowHeadersValue := strings.Join(allowHeaders, ", ")
 
 	return func(c *gin.Context) {
+		// /v1 is the public API surface consumed with API keys. It must work from
+		// arbitrary customer web applications, while panel and admin endpoints
+		// continue to use the configured origin allowlist. Public API requests do
+		// not use cookie credentials, so wildcard origins are safe and standards
+		// compliant here.
+		publicAPI := isPublicV1Path(c.Request.URL.Path)
+		requestAllowAll := allowAll || publicAPI
+		requestAllowCredentials := allowCredentials && !publicAPI
+
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
-		originAllowed := allowAll
-		if origin != "" && !allowAll {
+		originAllowed := requestAllowAll
+		if origin != "" && !requestAllowAll {
 			_, originAllowed = allowedSet[origin]
 		}
 
 		if originAllowed {
-			if allowAll {
+			if requestAllowAll {
 				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 			} else if origin != "" {
 				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 				c.Writer.Header().Add("Vary", "Origin")
 			}
-			if allowCredentials {
+			if requestAllowCredentials {
 				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
 			c.Writer.Header().Set("Access-Control-Allow-Headers", allowHeadersValue)
@@ -98,6 +110,10 @@ func CORS(cfg config.CORSConfig) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func isPublicV1Path(path string) bool {
+	return path == "/v1" || strings.HasPrefix(path, "/v1/")
 }
 
 func normalizeOrigins(values []string) []string {

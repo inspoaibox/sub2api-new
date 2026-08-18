@@ -105,8 +105,11 @@ run_mode: "standard"
 # 跨域资源共享 (CORS) 配置
 # =============================================================================
 cors:
-  # Allowed origins list. Leave empty to disable cross-origin requests.
-  # 允许的来源列表。留空则禁用跨域请求。
+  # Allowed origins for panel and management routes. Leave empty to reject
+  # cross-origin requests outside the public /v1 API. The API-key authenticated
+  # /v1 surface always allows any browser origin without cookie credentials.
+  # 面板和管理路由允许的来源列表。留空时，公开 /v1 API 之外的跨域请求会被拒绝。
+  # 使用 API Key 认证的 /v1 接口始终允许任意网页来源，但不允许携带 Cookie 凭证。
   allowed_origins: []
   # Allow credentials (cookies/authorization headers). Cannot be used with "*".
   # 允许携带凭证（cookies/授权头）。不能与 "*" 通配符同时使用。

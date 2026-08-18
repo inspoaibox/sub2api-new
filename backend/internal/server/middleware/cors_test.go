@@ -290,6 +290,66 @@ func TestCORS_VaryHeader_SetForSpecificOrigin(t *testing.T) {
 		"非通配符允许的 origin 应设置 Vary: Origin")
 }
 
+func TestCORS_PublicV1AllowsAnyWebOriginWithoutCredentials(t *testing.T) {
+	cfg := config.CORSConfig{
+		AllowedOrigins:   []string{"https://panel.example.com"},
+		AllowCredentials: true,
+	}
+	middleware := CORS(cfg)
+
+	for _, path := range []string{"/v1", "/v1/models", "/v1/chat/completions"} {
+		t.Run(path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodOptions, path, nil)
+			c.Request.Header.Set("Origin", "https://customer-app.example.com")
+			c.Request.Header.Set("Access-Control-Request-Method", http.MethodPost)
+			c.Request.Header.Set("Access-Control-Request-Headers", "authorization,content-type")
+
+			middleware(c)
+
+			assert.Equal(t, http.StatusNoContent, w.Code)
+			assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
+			assert.Empty(t, w.Header().Get("Access-Control-Allow-Credentials"))
+			assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "Authorization")
+			assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "X-Goog-Api-Key")
+			assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "Anthropic-Version")
+			assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "Anthropic-Dangerous-Direct-Browser-Access")
+		})
+	}
+}
+
+func TestCORS_PublicV1PolicyDoesNotBroadenOtherRoutes(t *testing.T) {
+	cfg := config.CORSConfig{
+		AllowedOrigins:   []string{"https://panel.example.com"},
+		AllowCredentials: true,
+	}
+	middleware := CORS(cfg)
+
+	for _, path := range []string{"/api/v1/users", "/admin", "/v10/models"} {
+		t.Run(path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodOptions, path, nil)
+			c.Request.Header.Set("Origin", "https://customer-app.example.com")
+
+			middleware(c)
+
+			assert.Equal(t, http.StatusForbidden, w.Code)
+			assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"))
+			assert.Empty(t, w.Header().Get("Access-Control-Allow-Credentials"))
+		})
+	}
+}
+
+func TestIsPublicV1Path(t *testing.T) {
+	assert.True(t, isPublicV1Path("/v1"))
+	assert.True(t, isPublicV1Path("/v1/responses"))
+	assert.False(t, isPublicV1Path("/v1beta/models"))
+	assert.False(t, isPublicV1Path("/v10/models"))
+	assert.False(t, isPublicV1Path("/api/v1/users"))
+}
+
 func TestNormalizeOrigins(t *testing.T) {
 	tests := []struct {
 		name   string
