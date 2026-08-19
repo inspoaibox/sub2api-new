@@ -38,6 +38,13 @@ const defaultImagePricePlaceholders: Record<
     image_price_2k: "0.02",
     image_price_4k: "0.02",
   },
+  // GPT Image uses official token pricing when the upstream returns usage.
+  // There is no single official per-image price to show as a placeholder.
+  openai: {
+    image_price_1k: "渠道默认",
+    image_price_2k: "渠道默认",
+    image_price_4k: "渠道默认",
+  },
 };
 
 // 视频价为每秒单价（USD/s）。480p/720p 取 grok-imagine-video（文生视频实际走该模型）的

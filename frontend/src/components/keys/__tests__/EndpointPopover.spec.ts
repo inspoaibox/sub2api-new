@@ -6,8 +6,6 @@ const copyToClipboard = vi.fn().mockResolvedValue(true)
 const messages: Record<string, string> = {
   'keys.endpoints.title': 'API 端点',
   'keys.endpoints.default': '默认',
-  'keys.endpoints.mainlandBackup': '大陆优化备用端点',
-  'keys.endpoints.mainlandBackupDescription': '适合中国大陆网络访问，默认端点连接不稳定时可切换使用。',
   'keys.endpoints.copied': '已复制',
   'keys.endpoints.copiedHint': '已复制到剪贴板',
   'keys.endpoints.clickToCopy': '点击可复制此端点',
@@ -69,15 +67,15 @@ describe('EndpointPopover', () => {
     expect(wrapper.find('button[aria-label="已复制到剪贴板"]').exists()).toBe(true)
   })
 
-  it('在默认端点右侧显示大陆优化备用端点并避免重复', () => {
+  it('直接显示管理员配置的自定义端点', () => {
     const wrapper = mount(EndpointPopover, {
       props: {
         apiBaseUrl: 'https://aokede.com',
         customEndpoints: [
           {
-            name: '重复线路',
-            endpoint: 'https://new.aokede.com/',
-            description: '',
+            name: '专线端点',
+            endpoint: 'https://regional.example.com',
+            description: '低延迟线路',
           },
         ],
       },
@@ -86,7 +84,8 @@ describe('EndpointPopover', () => {
     const endpoints = wrapper.findAll('code[role="button"]')
     expect(endpoints).toHaveLength(2)
     expect(endpoints[0].text()).toBe('https://aokede.com')
-    expect(endpoints[1].text()).toBe('https://new.aokede.com')
-    expect(wrapper.text()).toContain('大陆优化备用端点')
+    expect(endpoints[1].text()).toBe('https://regional.example.com')
+    expect(wrapper.text()).toContain('专线端点')
+    expect(wrapper.text()).toContain('低延迟线路')
   })
 })

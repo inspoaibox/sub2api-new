@@ -969,7 +969,7 @@ export default {
       },
       imagePricing: {
         title: '图片生成计费',
-        description: '配置图片生成能力和图片基础单价，留空则使用默认价格',
+        description: '配置图片生成能力和图片基础单价，留空则使用默认价格。OpenAI GPT Image 有官方用量时按图片 token 价格计费。',
         allowImageGeneration: '允许当前分组生图',
         allowBatchImageGeneration: '允许当前分组批量生图',
         independentMultiplier: '生图倍率独立',
@@ -981,7 +981,8 @@ export default {
         batchGeminiOnlyHint: '批量生图当前仅支持 Gemini 分组。',
         modeHint: '默认关闭独立倍率时，图片费用 = 图片价格 × 当前分组有效倍率；开启独立倍率后，图片费用 = 图片价格 × 生图独立倍率。',
         finalPricePreview: '最终单张价格预览',
-        notConfigured: '未配置'
+        notConfigured: '未配置',
+        defaultPrice: '按渠道/系统默认'
       },
       videoPricing: {
         title: '视频生成计费',

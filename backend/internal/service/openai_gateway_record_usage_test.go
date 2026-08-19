@@ -2174,6 +2174,33 @@ func TestOpenAIGatewayServiceRecordUsage_GroupImagePriceOverridesChannelImagePri
 	require.Equal(t, string(BillingModeImage), *usageRepo.lastLog.BillingMode)
 }
 
+func TestOpenAIGatewayServiceCalculateOpenAIImageCost_UsesOfficialTokenUsageWhenGroupPriceEmpty(t *testing.T) {
+	svc := newOpenAIRecordUsageServiceForTest(&openAIRecordUsageLogRepoStub{}, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+	// GPT Image's official pricing is represented by image input/output token
+	// rates in the model pricing table, not by one fixed per-image price.
+	svc.billingService.fallbackPrices["gpt-image-2"] = &ModelPricing{
+		InputPricePerToken:       5e-6,
+		ImageInputPricePerToken:  8e-6,
+		OutputPricePerToken:      10e-6,
+		ImageOutputPricePerToken: 30e-6,
+		ImageOutputPriceExplicit: true,
+	}
+
+	got := svc.calculateOpenAIImageCost(context.Background(), "gpt-image-2", &APIKey{}, &OpenAIForwardResult{
+		ImageCount: 1,
+		ImageSize:  ImageBillingSize2K,
+		Usage: OpenAIUsage{
+			InputTokens:       371,
+			ImageInputTokens:  352,
+			OutputTokens:      439,
+			ImageOutputTokens: 439,
+		},
+	}, 1.0)
+
+	require.Equal(t, string(BillingModeToken), got.BillingMode)
+	require.InDelta(t, 0.016081, got.TotalCost, 1e-12)
+}
+
 func TestOpenAIGatewayServiceRecordUsage_GroupVideoPriceOverridesChannelImagePrice(t *testing.T) {
 	groupID := int64(128)
 	channelPrice := 0.201

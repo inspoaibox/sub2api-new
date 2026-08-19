@@ -52,11 +52,10 @@ export interface UsageGuideContent {
     title: string
     description: string
     defaultLabel: string
-    backupLabel: string
     openAiLabel: string
     rootLabel: string
     defaultHint: string
-    backupHint: string
+    customHint: string
   }
   firstRequest: {
     title: string
@@ -186,7 +185,7 @@ const zh: UsageGuideContent = {
       },
       {
         title: '选择访问端点',
-        description: '优先使用默认端点；中国大陆网络连接不稳定时，切换到大陆优化备用端点。',
+        description: '优先使用默认端点；网络连接不稳定时，可切换到管理员配置的备用端点。',
       },
       {
         title: '填写并测试',
@@ -208,11 +207,10 @@ const zh: UsageGuideContent = {
     title: '端点应该填写哪个地址',
     description: '先看软件字段要求：写着 OpenAI、Base URL 或 API Host 时通常填写带 /v1 的地址；写着服务器根地址或 Anthropic Base URL 时填写根地址。',
     defaultLabel: '默认端点',
-    backupLabel: '大陆优化备用端点',
     openAiLabel: 'OpenAI 兼容地址',
     rootLabel: '服务器根地址',
     defaultHint: '日常优先使用，适合网络连接稳定的环境。',
-    backupHint: '适合中国大陆网络访问；默认线路不稳定、首字延迟高或流式连接容易中断时切换。',
+    customHint: '由管理员配置的自定义线路，可按需切换。',
   },
   firstRequest: {
     title: '先用一条请求验证密钥',
@@ -255,7 +253,7 @@ const zh: UsageGuideContent = {
       { symptom: '404 / Not Found', cause: '端点路径填写错误，最常见的是出现 /v1/v1 或软件已自动追加路径。', solution: '查看软件要求的是根地址还是 OpenAI 地址；删除重复路径后重试。' },
       { symptom: '429 / Too Many Requests', cause: '触发并发、RPM/TPM 限制，或短时间请求过多。', solution: '降低并发与请求频率，稍后重试；在使用记录中确认是否连续触发限流。' },
       { symptom: 'No available compatible accounts', cause: '当前密钥分组内没有支持该模型且可调度的账号。', solution: '核对模型 ID 和密钥分组；更换该分组已展示的模型，或联系管理员检查账号状态。' },
-      { symptom: 'stream disconnected / decoding response body', cause: '反向代理压缩、HTTP 协议转换或网络链路中断了流式响应。', solution: '切换大陆优化备用端点；自建 Caddy/Nginx 时关闭该 API 路径压缩，并保持流式响应直传。' },
+      { symptom: 'stream disconnected / decoding response body', cause: '反向代理压缩、HTTP 协议转换或网络链路中断了流式响应。', solution: '切换备用端点；自建 Caddy/Nginx 时关闭该 API 路径压缩，并保持流式响应直传。' },
       { symptom: 'model not found', cause: '模型 ID 拼写错误，使用了展示名称，或客户端缓存了旧模型列表。', solution: '从模型广场重新复制 ID，手动添加模型后重启客户端。' },
       { symptom: '请求成功但软件没有内容', cause: '客户端选择了不兼容的接口类型，或流式解析方式与模型端点不匹配。', solution: '优先选择 OpenAI Compatible；普通聊天使用 Chat Completions，Codex 使用 Responses。' },
     ],
@@ -413,7 +411,7 @@ const zh: UsageGuideContent = {
         '创建 ~/.codex/config.toml；Windows 路径为 %USERPROFILE%\\.codex\\config.toml。',
         '复制下面配置，并替换模型 ID。',
         '在启动 Codex 的终端设置 AOKEDE_API_KEY。',
-        '启动 codex 后发送测试请求。若流式中断，先切换大陆优化备用端点。',
+        '启动 codex 后发送测试请求。若流式中断，先切换备用端点。',
       ],
       snippets: [
         { id: 'codex-config', label: 'config.toml', language: 'toml', code: sharedSnippets.codexConfig },
@@ -489,7 +487,7 @@ const en: UsageGuideContent = {
     steps: [
       { title: 'Create an API key', description: 'Create a key on the API Keys page and store the full sk- value securely.', action: 'Open API Keys', to: '/keys' },
       { title: 'Confirm the model', description: 'Copy the exact model ID from Model Plaza. Do not guess from the display name.', action: 'Open Model Plaza', to: '/model-plaza?embedded=1' },
-      { title: 'Choose an endpoint', description: 'Use the default endpoint first. Switch to the mainland China backup when that network path is unstable.' },
+      { title: 'Choose an endpoint', description: 'Use the default endpoint first. Switch to an administrator-configured backup when the network path is unstable.' },
       { title: 'Configure and test', description: 'Select an OpenAI-compatible provider, enter the endpoint, key, and model ID, then send a short test message.' },
     ],
   },
@@ -507,11 +505,10 @@ const en: UsageGuideContent = {
     title: 'Which endpoint should I enter?',
     description: 'Fields labeled OpenAI, Base URL, or API Host usually need the /v1 URL. Server root and Anthropic Base URL fields use the root URL.',
     defaultLabel: 'Default endpoint',
-    backupLabel: 'Mainland China backup',
     openAiLabel: 'OpenAI-compatible URL',
     rootLabel: 'Server root URL',
     defaultHint: 'Recommended for normal use on a stable network.',
-    backupHint: 'Optimized for mainland China. Switch when streaming or latency is unstable on the default route.',
+    customHint: 'A custom route configured by the administrator.',
   },
   firstRequest: {
     title: 'Validate the key with one request',
@@ -554,7 +551,7 @@ const en: UsageGuideContent = {
       { symptom: '404 / Not Found', cause: 'Wrong path, commonly /v1/v1 after the client appends its own prefix.', solution: 'Check whether the client expects a root URL or an OpenAI /v1 URL.' },
       { symptom: '429 / Too Many Requests', cause: 'Concurrency, RPM, or TPM limit reached.', solution: 'Reduce concurrency and request frequency, then retry later.' },
       { symptom: 'No available compatible accounts', cause: 'No schedulable account in the key group supports that model.', solution: 'Verify the model ID and group, select a listed model, or contact the administrator.' },
-      { symptom: 'stream disconnected / decoding response body', cause: 'Proxy compression, protocol conversion, or the network path interrupted SSE.', solution: 'Use the mainland backup; for your own proxy, disable compression and pass streaming responses through.' },
+      { symptom: 'stream disconnected / decoding response body', cause: 'Proxy compression, protocol conversion, or the network path interrupted SSE.', solution: 'Use a backup endpoint; for your own proxy, disable compression and pass streaming responses through.' },
       { symptom: 'model not found', cause: 'Wrong model ID or a stale client-side model list.', solution: 'Copy the ID from Model Plaza, add it manually, and restart the client.' },
       { symptom: 'Successful request but blank client output', cause: 'The client selected an incompatible API type or parser.', solution: 'Use OpenAI Compatible and Chat Completions for chat; use Responses for Codex.' },
     ],
@@ -605,7 +602,7 @@ const englishGuideText: Record<string, Pick<UsageGuideSoftware, 'summary' | 'ste
   },
   'codex-cli': {
     summary: 'Connect Codex through the Responses API over HTTP/SSE.',
-    steps: ['Create ~/.codex/config.toml or %USERPROFILE%\\.codex\\config.toml on Windows.', 'Copy the config and replace the model ID.', 'Set AOKEDE_API_KEY in the terminal.', 'Launch Codex and test; switch to the mainland backup if streaming is unstable.'],
+    steps: ['Create ~/.codex/config.toml or %USERPROFILE%\\.codex\\config.toml on Windows.', 'Copy the config and replace the model ID.', 'Set AOKEDE_API_KEY in the terminal.', 'Launch Codex and test; switch to a backup endpoint if streaming is unstable.'],
     notes: ['Keep supports_websockets = false because this route uses HTTP/SSE.'],
   },
   curl: {

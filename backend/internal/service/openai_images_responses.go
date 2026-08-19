@@ -336,6 +336,9 @@ func buildOpenAIImagesResponsesRequest(parsed *OpenAIImagesRequest, toolModel st
 	if prompt == "" {
 		return nil, fmt.Errorf("prompt is required")
 	}
+	if len(parsed.InputImageFileIDs) > 0 || strings.TrimSpace(parsed.MaskFileID) != "" {
+		return nil, fmt.Errorf("file_id image inputs require an API key account; OAuth image accounts accept image_url or multipart image uploads")
+	}
 
 	inputImages := make([]string, 0, len(parsed.InputImageURLs)+len(parsed.Uploads))
 	for _, imageURL := range parsed.InputImageURLs {
@@ -386,6 +389,7 @@ func buildOpenAIImagesResponsesRequest(parsed *OpenAIImagesRequest, toolModel st
 		{path: "background", value: parsed.Background},
 		{path: "output_format", value: parsed.OutputFormat},
 		{path: "moderation", value: parsed.Moderation},
+		{path: "input_fidelity", value: parsed.InputFidelity},
 		{path: "style", value: parsed.Style},
 	} {
 		if trimmed := strings.TrimSpace(field.value); trimmed != "" {

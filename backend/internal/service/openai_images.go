@@ -39,6 +39,10 @@ const (
 	openAIImageBackendUserAgent    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 	openAIImageMaxDownloadBytes    = 20 << 20 // 20MB per image download
 	openAIImageMaxUploadPartSize   = 20 << 20 // 20MB per multipart upload part
+	openAIImagesMaxInputImages     = 16
+	openAIImagesMaxN               = 10
+	openAIImagesMaxPartialImages   = 3
+	openAIImagesMaxCompression     = 100
 	openAIImagesResponsesMainModel = "gpt-5.4-mini"
 )
 
@@ -83,7 +87,9 @@ type OpenAIImagesRequest struct {
 	HasNativeOptions   bool
 	RequiredCapability OpenAIImagesCapability
 	InputImageURLs     []string
+	InputImageFileIDs  []string
 	MaskImageURL       string
+	MaskFileID         string
 	Uploads            []OpenAIImagesUpload
 	MaskUpload         *OpenAIImagesUpload
 	Body               []byte
@@ -215,6 +221,9 @@ func (s *OpenAIGatewayService) ParseOpenAIImagesRequest(c *gin.Context, body []b
 	}
 
 	applyOpenAIImagesDefaults(req)
+	if err := validateOpenAIImagesRequestFields(req); err != nil {
+		return nil, err
+	}
 	if err := validateOpenAIImagesModel(req.Model); err != nil {
 		return nil, err
 	}
@@ -279,30 +288,73 @@ func parseOpenAIImagesJSONRequest(body []byte, req *OpenAIImagesRequest) error {
 			if !images.IsArray() {
 				return fmt.Errorf("invalid images field type")
 			}
-			for _, item := range images.Array() {
-				if imageURL := strings.TrimSpace(item.Get("image_url").String()); imageURL != "" {
+			items := images.Array()
+			if len(items) > openAIImagesMaxInputImages {
+				return fmt.Errorf("images must contain at most %d input images", openAIImagesMaxInputImages)
+			}
+			for _, item := range items {
+				imageURL := strings.TrimSpace(item.Get("image_url").String())
+				fileID := strings.TrimSpace(item.Get("file_id").String())
+				if imageURL != "" && fileID != "" {
+					return fmt.Errorf("images[] must contain exactly one of image_url or file_id")
+				}
+				if imageURL != "" {
 					req.InputImageURLs = append(req.InputImageURLs, imageURL)
 					continue
 				}
-				if item.Get("file_id").Exists() {
-					return fmt.Errorf("images[].file_id is not supported (use images[].image_url instead)")
+				if fileID != "" {
+					req.InputImageFileIDs = append(req.InputImageFileIDs, fileID)
+					continue
+				}
+				if item.Get("image_url").Exists() || item.Get("file_id").Exists() {
+					return fmt.Errorf("images[] requires a non-empty image_url or file_id")
 				}
 			}
 		}
-		if maskImageURL := strings.TrimSpace(gjson.GetBytes(body, "mask.image_url").String()); maskImageURL != "" {
+		maskImageURL := strings.TrimSpace(gjson.GetBytes(body, "mask.image_url").String())
+		maskFileID := strings.TrimSpace(gjson.GetBytes(body, "mask.file_id").String())
+		if maskImageURL != "" && maskFileID != "" {
+			return fmt.Errorf("mask must contain exactly one of image_url or file_id")
+		}
+		if maskImageURL != "" {
 			req.MaskImageURL = maskImageURL
 			req.HasMask = true
 		}
-		if gjson.GetBytes(body, "mask.file_id").Exists() {
-			return fmt.Errorf("mask.file_id is not supported (use mask.image_url instead)")
+		if maskFileID != "" {
+			req.MaskFileID = maskFileID
+			req.HasMask = true
+		} else if gjson.GetBytes(body, "mask.file_id").Exists() {
+			return fmt.Errorf("mask.file_id must be a non-empty string")
 		}
-		if len(req.InputImageURLs) == 0 {
-			return fmt.Errorf("images[].image_url is required")
+		if len(req.InputImageURLs) == 0 && len(req.InputImageFileIDs) == 0 {
+			return fmt.Errorf("images[] requires at least one image_url or file_id")
 		}
 	}
 	req.HasNativeOptions = hasOpenAINativeImageOptions(func(path string) bool {
 		return gjson.GetBytes(body, path).Exists()
 	})
+	return nil
+}
+
+func validateOpenAIImagesRequestFields(req *OpenAIImagesRequest) error {
+	if req == nil {
+		return fmt.Errorf("images request is required")
+	}
+	if req.N < 1 || req.N > openAIImagesMaxN {
+		return fmt.Errorf("n must be between 1 and %d", openAIImagesMaxN)
+	}
+	if req.PartialImages != nil && (*req.PartialImages < 0 || *req.PartialImages > openAIImagesMaxPartialImages) {
+		return fmt.Errorf("partial_images must be between 0 and %d", openAIImagesMaxPartialImages)
+	}
+	if req.OutputCompression != nil && (*req.OutputCompression < 0 || *req.OutputCompression > openAIImagesMaxCompression) {
+		return fmt.Errorf("output_compression must be between 0 and %d", openAIImagesMaxCompression)
+	}
+	if req.InputFidelity != "" && req.InputFidelity != "high" && req.InputFidelity != "low" {
+		return fmt.Errorf("input_fidelity must be high or low")
+	}
+	if len(req.InputImageURLs)+len(req.InputImageFileIDs)+len(req.Uploads) > openAIImagesMaxInputImages {
+		return fmt.Errorf("images must contain at most %d input images", openAIImagesMaxInputImages)
+	}
 	return nil
 }
 

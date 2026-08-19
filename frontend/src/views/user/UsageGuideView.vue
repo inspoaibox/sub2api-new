@@ -363,7 +363,6 @@ const SectionHeading = defineComponent({
   },
 })
 
-const MAINLAND_BACKUP_ENDPOINT = 'https://new.aokede.com'
 const API_KEY_PLACEHOLDER = 'sk-your-api-key'
 const MODEL_PLACEHOLDER = 'your-model-id'
 
@@ -373,7 +372,7 @@ const { copyToClipboard } = useClipboard()
 
 const searchQuery = ref('')
 const activeCategory = ref<UsageGuideCategory>('clients')
-const selectedEndpoint = ref<'default' | 'backup'>('default')
+const selectedEndpoint = ref('default')
 const copiedId = ref<string | null>(null)
 let copiedTimer: number | undefined
 
@@ -393,35 +392,65 @@ const defaultBaseRoot = computed(() => {
   return normalizeBaseRoot(configured)
 })
 
-const activeBaseRoot = computed(() => selectedEndpoint.value === 'backup'
-  ? MAINLAND_BACKUP_ENDPOINT
-  : defaultBaseRoot.value)
+const customEndpoints = computed(() => {
+  const settings = appStore.cachedPublicSettings
+  return (settings?.custom_endpoints ?? []).flatMap((endpoint, index) => {
+    const name = endpoint.name?.trim() || ''
+    const value = normalizeBaseRoot(endpoint.endpoint || '')
+    if (name === '' || value === '') return []
+
+    return [{
+      id: `custom-${index}`,
+      name,
+      endpoint: value,
+      description: endpoint.description?.trim() || content.value.endpoints.customHint,
+    }]
+  })
+})
+
+const activeBaseRoot = computed(() => {
+  if (selectedEndpoint.value === 'default') return defaultBaseRoot.value
+  return customEndpoints.value.find((endpoint) => endpoint.id === selectedEndpoint.value)?.endpoint
+    || defaultBaseRoot.value
+})
 
 const activeOpenAiBase = computed(() => withV1(activeBaseRoot.value))
 
 const endpointUseLabel = computed(() => locale.value === 'zh' ? '使用此端点' : 'Use endpoint')
 const endpointSelectedLabel = computed(() => locale.value === 'zh' ? '教程当前使用' : 'Used in examples')
 
-const endpointOptions = computed(() => [
-  {
-    id: 'default' as const,
-    label: content.value.endpoints.defaultLabel,
-    hint: content.value.endpoints.defaultHint,
-    values: [
-      { kind: 'root', label: content.value.endpoints.rootLabel, value: defaultBaseRoot.value },
-      { kind: 'openai', label: content.value.endpoints.openAiLabel, value: withV1(defaultBaseRoot.value) },
-    ],
-  },
-  {
-    id: 'backup' as const,
-    label: content.value.endpoints.backupLabel,
-    hint: content.value.endpoints.backupHint,
-    values: [
-      { kind: 'root', label: content.value.endpoints.rootLabel, value: MAINLAND_BACKUP_ENDPOINT },
-      { kind: 'openai', label: content.value.endpoints.openAiLabel, value: withV1(MAINLAND_BACKUP_ENDPOINT) },
-    ],
-  },
-])
+const endpointOptions = computed(() => {
+  const options: Array<{
+    id: string
+    label: string
+    hint: string
+    values: Array<{ kind: 'root' | 'openai'; label: string; value: string }>
+  }> = [
+    {
+      id: 'default',
+      label: content.value.endpoints.defaultLabel,
+      hint: content.value.endpoints.defaultHint,
+      values: [
+        { kind: 'root', label: content.value.endpoints.rootLabel, value: defaultBaseRoot.value },
+        { kind: 'openai', label: content.value.endpoints.openAiLabel, value: withV1(defaultBaseRoot.value) },
+      ],
+    },
+  ]
+
+  for (const endpoint of customEndpoints.value) {
+    options.push({
+      id: endpoint.id,
+      label: endpoint.name,
+      hint: endpoint.description,
+      values: [
+        { kind: 'root', label: content.value.endpoints.rootLabel, value: endpoint.endpoint },
+        { kind: 'openai', label: content.value.endpoints.openAiLabel, value: withV1(endpoint.endpoint) },
+      ],
+    })
+  }
+
+  return options
+})
 
 const normalizedSearch = computed(() => searchQuery.value.trim().toLocaleLowerCase())
 

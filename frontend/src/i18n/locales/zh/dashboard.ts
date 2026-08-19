@@ -72,8 +72,6 @@ export default {
     endpoints: {
       title: 'API 端点',
       default: '默认',
-      mainlandBackup: '大陆优化备用端点',
-      mainlandBackupDescription: '适合中国大陆网络访问，默认端点连接不稳定时可切换使用。',
       copied: '已复制',
       copiedHint: '已复制到剪贴板',
       clickToCopy: '点击可复制此端点',

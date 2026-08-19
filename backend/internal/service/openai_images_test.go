@@ -66,6 +66,94 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSON(t *testing.T) {
 	require.False(t, parsed.Multipart)
 }
 
+func TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSONFileReferences(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"replace the background","images":[{"file_id":"file_source"}],"mask":{"file_id":"file_mask"}}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	parsed, err := (&OpenAIGatewayService{}).ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+	require.Equal(t, []string{"file_source"}, parsed.InputImageFileIDs)
+	require.Equal(t, "file_mask", parsed.MaskFileID)
+	require.True(t, parsed.HasMask)
+
+	_, err = buildOpenAIImagesResponsesRequest(parsed, "gpt-image-2")
+	require.ErrorContains(t, err, "file_id image inputs require an API key account")
+}
+
+func TestBuildOpenAIImagesResponsesRequest_PassesInputFidelity(t *testing.T) {
+	parsed := &OpenAIImagesRequest{
+		Endpoint:       openAIImagesEditsEndpoint,
+		Prompt:         "replace the background",
+		InputImageURLs: []string{"https://example.com/source.png"},
+		InputFidelity:  "high",
+	}
+
+	body, err := buildOpenAIImagesResponsesRequest(parsed, "gpt-image-2")
+	require.NoError(t, err)
+	require.Equal(t, "high", gjson.GetBytes(body, "tools.0.input_fidelity").String())
+}
+
+func TestOpenAIGatewayServiceParseOpenAIImagesRequest_ValidatesOfficialLimits(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		body     string
+		want     string
+	}{
+		{
+			name:     "images reference is exclusive",
+			endpoint: "/v1/images/edits",
+			body:     `{"model":"gpt-image-2","prompt":"edit","images":[{"image_url":"https://example.com/source.png","file_id":"file_source"}]}`,
+			want:     "exactly one of image_url or file_id",
+		},
+		{
+			name:     "n upper bound",
+			endpoint: "/v1/images/generations",
+			body:     `{"model":"gpt-image-2","prompt":"draw","n":11}`,
+			want:     "n must be between 1 and 10",
+		},
+		{
+			name:     "partial images upper bound",
+			endpoint: "/v1/images/generations",
+			body:     `{"model":"gpt-image-2","prompt":"draw","partial_images":4}`,
+			want:     "partial_images must be between 0 and 3",
+		},
+		{
+			name:     "compression upper bound",
+			endpoint: "/v1/images/generations",
+			body:     `{"model":"gpt-image-2","prompt":"draw","output_compression":101}`,
+			want:     "output_compression must be between 0 and 100",
+		},
+		{
+			name:     "input fidelity enum",
+			endpoint: "/v1/images/generations",
+			body:     `{"model":"gpt-image-2","prompt":"edit","input_fidelity":"medium"}`,
+			want:     "input_fidelity must be high or low",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			body := []byte(tt.body)
+			req := httptest.NewRequest(http.MethodPost, tt.endpoint, bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = req
+
+			_, err := (&OpenAIGatewayService{}).ParseOpenAIImagesRequest(c, body)
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
+}
+
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEdit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -1768,7 +1856,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthEditsMultipartUsesResponsesAPI(t
 	require.Equal(t, 1, result.ImageCount)
 	require.Equal(t, "gpt-image-2", gjson.GetBytes(upstream.lastBody, "tools.0.model").String())
 	require.Equal(t, "edit", gjson.GetBytes(upstream.lastBody, "tools.0.action").String())
-	require.False(t, gjson.GetBytes(upstream.lastBody, "tools.0.input_fidelity").Exists())
+	require.Equal(t, "high", gjson.GetBytes(upstream.lastBody, "tools.0.input_fidelity").String())
 	require.Equal(t, "webp", gjson.GetBytes(upstream.lastBody, "tools.0.output_format").String())
 	require.True(t, strings.HasPrefix(gjson.GetBytes(upstream.lastBody, "input.0.content.1.image_url").String(), "data:image/png;base64,"))
 	require.True(t, strings.HasPrefix(gjson.GetBytes(upstream.lastBody, "tools.0.input_image_mask.image_url").String(), "data:image/png;base64,"))
@@ -1890,7 +1978,7 @@ func TestBuildOpenAIImagesResponsesRequest_DoesNotPassNForDallE3(t *testing.T) {
 	require.Equal(t, "dall-e-3", gjson.GetBytes(body, "tools.0.model").String())
 }
 
-func TestBuildOpenAIImagesResponsesRequest_StripsInputFidelity(t *testing.T) {
+func TestBuildOpenAIImagesResponsesRequest_PassesInputFidelityFromEdit(t *testing.T) {
 	parsed := &OpenAIImagesRequest{
 		Endpoint:      openAIImagesEditsEndpoint,
 		Model:         "gpt-image-2",
@@ -1904,7 +1992,7 @@ func TestBuildOpenAIImagesResponsesRequest_StripsInputFidelity(t *testing.T) {
 	body, err := buildOpenAIImagesResponsesRequest(parsed, "gpt-image-2")
 	require.NoError(t, err)
 	require.NotNil(t, body)
-	require.False(t, gjson.GetBytes(body, "tools.0.input_fidelity").Exists())
+	require.Equal(t, "high", gjson.GetBytes(body, "tools.0.input_fidelity").String())
 	require.Equal(t, "edit", gjson.GetBytes(body, "tools.0.action").String())
 }
 

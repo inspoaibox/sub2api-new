@@ -283,7 +283,36 @@ func (s *BillingService) initFallbackPricing() {
 		SupportsCacheBreakdown: false,
 	}
 
-	// OpenAI GPT-5.4（业务指定价格）
+	// OpenAI GPT Image 官方价目以图片输入/输出 token 计价。这里保留同一套
+	// token 兜底，使动态价格文件暂时不可用时，留空分组图片单价仍按官方口径计费。
+	s.fallbackPrices["gpt-image-1"] = &ModelPricing{
+		InputPricePerToken:       5e-6,
+		ImageInputPricePerToken:  10e-6,
+		ImageOutputPricePerToken: 40e-6,
+		ImageOutputPriceExplicit: true,
+	}
+	s.fallbackPrices["gpt-image-1-mini"] = &ModelPricing{
+		InputPricePerToken:       2e-6,
+		ImageInputPricePerToken:  2.5e-6,
+		ImageOutputPricePerToken: 8e-6,
+		ImageOutputPriceExplicit: true,
+	}
+	s.fallbackPrices["gpt-image-1.5"] = &ModelPricing{
+		InputPricePerToken:       5e-6,
+		ImageInputPricePerToken:  8e-6,
+		OutputPricePerToken:      10e-6,
+		ImageOutputPricePerToken: 32e-6,
+		ImageOutputPriceExplicit: true,
+	}
+	s.fallbackPrices["gpt-image-2"] = &ModelPricing{
+		InputPricePerToken:       5e-6,
+		ImageInputPricePerToken:  8e-6,
+		OutputPricePerToken:      10e-6,
+		ImageOutputPricePerToken: 30e-6,
+		ImageOutputPriceExplicit: true,
+	}
+	s.fallbackPrices["gpt-image-2-2026-04-21"] = s.fallbackPrices["gpt-image-2"]
+
 	s.fallbackPrices["gpt-5.4"] = &ModelPricing{
 		InputPricePerToken:             2.5e-6,  // $2.5 per MTok
 		InputPricePerTokenPriority:     5e-6,    // $5 per MTok
@@ -814,6 +843,10 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 		return s.fallbackPrices["grok-4.3"]
 	case "grok-build", "grok-build-0.1", "grok-composer", "grok-composer-2.5-fast", "composer-2.5":
 		return s.fallbackPrices["grok-build-0.1"]
+	}
+
+	if pricing, ok := s.fallbackPrices[modelLower]; ok && pricing != nil {
+		return pricing
 	}
 
 	return nil

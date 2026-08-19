@@ -13,8 +13,6 @@ const { t } = useI18n()
 const { copyToClipboard } = useClipboard()
 const copiedEndpoint = ref<string | null>(null)
 
-const MAINLAND_BACKUP_ENDPOINT = 'https://new.aokede.com'
-
 let copiedResetTimer: number | undefined
 
 const allEndpoints = computed(() => {
@@ -28,18 +26,7 @@ const allEndpoints = computed(() => {
     })
   }
 
-  items.push({
-    name: t('keys.endpoints.mainlandBackup'),
-    endpoint: MAINLAND_BACKUP_ENDPOINT,
-    description: t('keys.endpoints.mainlandBackupDescription'),
-    isDefault: false,
-  })
-
-  const normalizedBackupEndpoint = MAINLAND_BACKUP_ENDPOINT.toLowerCase()
   for (const ep of props.customEndpoints) {
-    if (ep.endpoint.trim().replace(/\/+$/, '').toLowerCase() === normalizedBackupEndpoint) {
-      continue
-    }
     items.push({ ...ep, isDefault: false })
   }
   return items

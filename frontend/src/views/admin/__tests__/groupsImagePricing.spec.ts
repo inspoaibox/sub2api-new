@@ -49,9 +49,9 @@ describe("groups image pricing platform support", () => {
     expect(getVideoPricePlaceholder("grok", "video_price_1080p")).toBe("0.25");
   });
 
-  it("keeps non-Grok image placeholders on the generic image card", () => {
-    expect(getImagePricePlaceholder("openai", "image_price_1k")).toBe("0.134");
-    expect(getDefaultImagePreviewPrice("openai", "image_price_2k")).toBe(0.201);
+  it("does not show a fake per-image price for GPT Image", () => {
+    expect(getImagePricePlaceholder("openai", "image_price_1k")).toBe("渠道默认");
+    expect(getDefaultImagePreviewPrice("openai", "image_price_2k")).toBeNull();
     expect(getDefaultVideoPreviewPrice("openai", "video_price_480p")).toBeNull();
   });
 });

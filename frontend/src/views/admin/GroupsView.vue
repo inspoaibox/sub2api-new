@@ -5424,7 +5424,7 @@ const buildImageFinalPricePreview = (form: ImagePricingFormState) => {
       label: tier.label,
       value: basePrice !== null
         ? formatImagePricePreview(basePrice * multiplier)
-        : t("admin.groups.imagePricing.notConfigured"),
+        : t("admin.groups.imagePricing.defaultPrice"),
     };
   });
 };

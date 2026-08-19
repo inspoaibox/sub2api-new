@@ -972,7 +972,7 @@ export default {
       },
       imagePricing: {
         title: 'Image Generation Pricing',
-        description: 'Configure image generation access and base image prices. Leave empty to use default prices.',
+        description: 'Configure image generation access and base image prices. Leave empty to use default pricing; OpenAI GPT Image uses official image-token pricing when usage is returned.',
         allowImageGeneration: 'Allow image generation for this group',
         allowBatchImageGeneration: 'Allow batch image generation for this group',
         independentMultiplier: 'Use independent image multiplier',
@@ -984,7 +984,8 @@ export default {
         batchGeminiOnlyHint: 'Batch image generation is currently available only for Gemini groups.',
         modeHint: 'By default, image billing uses image price × current effective group multiplier. Independent mode uses image price × image multiplier.',
         finalPricePreview: 'Final per-image price preview',
-        notConfigured: 'Not configured'
+        notConfigured: 'Not configured',
+        defaultPrice: 'Channel/system default'
       },
       videoPricing: {
         title: 'Video Generation Pricing',

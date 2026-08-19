@@ -686,6 +686,28 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCost(
 		logger.LegacyPrintf("service.openai_gateway", "Calculate image channel cost failed: %v", err)
 	}
 
+	// GPT Image's official price card is token based. When the group leaves its
+	// per-image price empty and the upstream returns image token usage, use the
+	// global model price instead of silently falling back to the generic Gemini
+	// per-image safety price. A request without token usage still falls through to
+	// the legacy per-image fallback below so it remains billable.
+	if s.billingService != nil &&
+		(result.Usage.ImageInputTokens > 0 || result.Usage.ImageOutputTokens > 0) {
+		cost, err := s.billingService.CalculateCost(billingModel, UsageTokens{
+			InputTokens:         result.Usage.InputTokens,
+			ImageInputTokens:    result.Usage.ImageInputTokens,
+			OutputTokens:        result.Usage.OutputTokens,
+			ImageOutputTokens:   result.Usage.ImageOutputTokens,
+			CacheCreationTokens: result.Usage.CacheCreationInputTokens,
+			CacheReadTokens:     result.Usage.CacheReadInputTokens,
+		}, multiplier)
+		if err == nil {
+			cost.BillingMode = string(BillingModeToken)
+			return cost
+		}
+		logger.LegacyPrintf("service.openai_gateway", "Calculate image token cost failed: %v", err)
+	}
+
 	return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
 }
 
